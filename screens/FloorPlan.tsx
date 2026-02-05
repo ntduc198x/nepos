@@ -13,10 +13,11 @@ import { useOrderOperations } from '../hooks/useOrderOperations';
 import { TransferModal } from '../components/TransferModal';
 import { PaymentModal } from '../components/PaymentModal';
 import { enrichOrderDetails, getPaidAmount } from '../utils/orderHelpers';
-import { printOrderReceipt } from '../services/printService';
+import { printOrderReceipt, generateReceiptHTML, isSandboxed } from '../services/printService';
 import { useCurrency } from '../CurrencyContext';
 import { useAuth } from '../AuthContext';
-import { useToast } from '../context/ToastContext'; // Import Toast
+import { useToast } from '../context/ToastContext'; 
+import { usePrintPreview } from '../context/PrintPreviewContext';
 
 export const FloorPlan: React.FC = () => {
   const { tables, orders, menuItems, refreshData, addLocalOrder, addItemToSession, checkoutSession, updateLocalOrder, cancelOrder, loading, moveTable, mergeOrders } = useData();
@@ -26,6 +27,7 @@ export const FloorPlan: React.FC = () => {
   const { formatPrice } = useCurrency();
   const { user } = useAuth();
   const { showToast } = useToast();
+  const { openPreview } = usePrintPreview();
 
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
   const [editingTableId, setEditingTableId] = useState<string | null>(null);
@@ -238,16 +240,18 @@ export const FloorPlan: React.FC = () => {
 
   const handleTransferConfirm = async (targetId: string, mode: 'move' | 'merge') => {
       setIsSubmitting(true);
+      console.log(`[move_table] start: mode=${mode}, source=${selectedTableId}, target=${targetId}`);
       try {
           if (mode === 'move') {
               await moveTable(selectedTableId!, targetId);
           } else {
               await mergeOrders(selectedTableId!, targetId);
           }
+          console.log(`[move_table] ok`);
           setShowTransferModal(false);
           setSelectedTableId(null);
       } catch (e) {
-          console.error(e);
+          console.error('[move_table] error:', e);
           alert('Failed to transfer table');
       } finally {
           setIsSubmitting(false);
@@ -259,6 +263,15 @@ export const FloorPlan: React.FC = () => {
           setSelectedTableId(null);
           setModifiedItems(null);
       });
+  };
+
+  const performPrint = async (order: any) => {
+    if (isSandboxed() && settings.printMethod !== 'rawbt') {
+        const html = await generateReceiptHTML(order, settings.paperSize as any);
+        openPreview({ html, title: 'In hóa đơn', meta: { action: 'REPRINT_ON_EDIT' } });
+    } else {
+        await printOrderReceipt(order);
+    }
   };
 
   if (loading) return <div className="flex-1 flex items-center justify-center bg-background"><Loader2 className="animate-spin text-primary" size={48} /></div>;
@@ -387,12 +400,20 @@ export const FloorPlan: React.FC = () => {
           })}
         </div>
         {!isEditMode && selectedTableId && activeTable && (
-          <div onClick={(e) => e.stopPropagation()} className="fixed lg:absolute bottom-0 lg:bottom-auto left-0 lg:left-auto w-full lg:w-[320px] z-50 animate-in slide-in-from-bottom duration-300" style={window.innerWidth >= 1024 ? { top: `${activeTable.y}%`, left: (activeTable.x || 0) < 50 ? `calc(${activeTable.x}% + ${activeTable.width}px + 12px)` : `calc(${activeTable.x}% - 332px)` } : {}}>
+          <div 
+            onClick={(e) => e.stopPropagation()} 
+            className="fixed lg:absolute bottom-0 lg:bottom-auto left-0 lg:left-auto w-full lg:w-[320px] z-[60] animate-in slide-in-from-bottom duration-300 flex flex-col max-h-[85vh] lg:max-h-[60vh] shadow-xl rounded-2xl" 
+            style={window.innerWidth >= 1024 ? { 
+                top: (activeTable.y || 0) > 60 ? 'auto' : `${activeTable.y}%`,
+                bottom: (activeTable.y || 0) > 60 ? `${100 - (activeTable.y || 0)}%` : 'auto',
+                left: (activeTable.x || 0) < 50 ? `calc(${activeTable.x}% + ${activeTable.width}px + 12px)` : `calc(${activeTable.x}% - 332px)` 
+            } : {}}
+          >
             {(() => {
                 const active = (orders || []).find(o => String(o.table_id) === String(selectedTableId) && ['Pending', 'Cooking', 'Ready'].includes(o.status));
                 if (!active) return (
                   <div 
-                    className="bg-surface border border-border shadow-2xl rounded-2xl overflow-hidden p-4 transition-all duration-300"
+                    className="bg-surface border border-border shadow-2xl rounded-2xl overflow-hidden p-4 transition-all duration-300 mb-[calc(env(safe-area-inset-bottom)+10px)] lg:mb-0 shrink-0"
                     style={{ borderWidth: 'var(--pos-border-strong)' }}
                   >
                     <div className="flex items-center justify-between gap-3 mb-4">
@@ -433,145 +454,151 @@ export const FloorPlan: React.FC = () => {
                 const finalDisplayTotal = Math.max(0, currentTotal - discountAmount);
                 return (
                   <div 
-                    className="bg-surface/90 dark:bg-surface/80 dark:bg-[#1a2c26]/95 backdrop-blur-md border border-border shadow-2xl rounded-[20px] overflow-hidden p-5 transition-all duration-300 w-full"
+                    className="bg-surface/90 dark:bg-surface/80 dark:bg-[#1a2c26]/95 backdrop-blur-md border border-border shadow-2xl rounded-t-[20px] lg:rounded-[20px] overflow-hidden flex flex-col w-full h-full max-h-full transition-all duration-300"
                     style={{ borderWidth: 'var(--pos-border-strong)' }}
                   >
-                    <div className="flex justify-between items-start pb-4 border-b border-border/50 mb-4">
-                      <div className="flex items-center gap-3">
-                          <div className="size-10 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-500 shadow-sm"><Armchair size={20} /></div>
-                          <div>
-                              <div className="flex items-center gap-2">
-                                {active.table_id === 'Takeaway' ? (
-                                    <span className="px-2 py-0.5 rounded-lg text-sm font-black bg-amber-100 text-amber-600 border border-amber-200 uppercase tracking-tighter">
-                                        {activeTable?.label || 'Takeaway'}
-                                    </span>
-                                ) : (
-                                    <h3 className="text-lg font-black leading-tight text-text-main">
-                                        {activeTable?.label}
-                                    </h3>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-1.5 mt-0.5">
-                                 <div className="size-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                                 <p className="text-[9px] text-secondary uppercase font-bold tracking-[0.1em]">{t('In Use')}</p>
-                              </div>
-                          </div>
-                      </div>
-                      <div className="flex gap-1">
-                        <button onClick={() => setShowTransferModal(true)} className="p-2 text-secondary hover:text-primary hover:bg-primary/10 rounded-xl transition-all" title={t('Split / Merge Table')}><ArrowRightLeft size={18}/></button>
-                        
-                        <button 
-                            onClick={() => handleDeleteClick(active)} 
-                            className="p-2 text-secondary hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all"
-                        >
-                            <Trash2 size={18}/>
-                        </button>
+                    {/* HEADER SECTION - FIXED */}
+                    <div className="p-5 pb-0 shrink-0">
+                        <div className="flex justify-between items-start pb-4 border-b border-border/50">
+                        <div className="flex items-center gap-3">
+                            <div className="size-10 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-500 shadow-sm"><Armchair size={20} /></div>
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    {active.table_id === 'Takeaway' ? (
+                                        <span className="px-2 py-0.5 rounded-lg text-sm font-black bg-amber-100 text-amber-600 border border-amber-200 uppercase tracking-tighter">
+                                            {activeTable?.label || 'Takeaway'}
+                                        </span>
+                                    ) : (
+                                        <h3 className="text-lg font-black leading-tight text-text-main">
+                                            {activeTable?.label}
+                                        </h3>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                    <div className="size-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                                    <p className="text-[9px] text-secondary uppercase font-bold tracking-[0.1em]">{t('In Use')}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex gap-1">
+                            <button onClick={() => setShowTransferModal(true)} className="p-2 text-secondary hover:text-primary hover:bg-primary/10 rounded-xl transition-all" title={t('Split / Merge Table')}><ArrowRightLeft size={18}/></button>
+                            
+                            <button 
+                                onClick={() => handleDeleteClick(active)} 
+                                className="p-2 text-secondary hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all"
+                            >
+                                <Trash2 size={18}/>
+                            </button>
 
-                        <button onClick={() => setSelectedTableId(null)} className="p-2 hover:bg-border/50 rounded-xl text-secondary transition-all"><X size={18}/></button>
-                      </div>
+                            <button onClick={() => setSelectedTableId(null)} className="p-2 hover:bg-border/50 rounded-xl text-secondary transition-all"><X size={18}/></button>
+                        </div>
+                        </div>
                     </div>
-                    {/* ... (Existing Items List & Footer Logic) ... */}
+
+                    {/* ITEMS LIST - SCROLLABLE FLEX */}
                     <div 
-                        className="max-h-[220px] overflow-y-auto space-y-2.5 mb-5 custom-scrollbar pr-1.5 -mx-1 px-1"
-                        style={{ gap: 'var(--pos-gap)' }}
+                        className="flex-1 overflow-y-auto p-5 py-2 custom-scrollbar min-h-0"
                     >
-                      {/* ... (Existing List Logic) ... */}
                       {itemsToDisplay.length === 0 ? (
                         <div className="text-center py-4 text-secondary text-xs opacity-50 font-bold uppercase">{t('Cart is empty')}</div>
                       ) : (
-                        itemsToDisplay.map((it: any, idx: number) => (
-                          <div key={idx} className="flex flex-col p-3 bg-background/40 hover:bg-background/80 border border-border/40 rounded-xl group transition-all duration-200 relative">
-                            {/* ... (Existing Item Row Logic) ... */}
-                            <div className="flex items-center justify-between gap-3">
-                              <div className="flex items-center gap-2 min-w-0">
-                                  <div className="flex items-center gap-1.5 bg-surface border border-border p-0.5 rounded-lg">
-                                    <button 
-                                      onClick={() => handleUpdateItemQty(idx, -1, itemsToDisplay)}
-                                      className="size-6 flex items-center justify-center hover:bg-border rounded text-secondary hover:text-red-500"
+                        <div className="space-y-2.5">
+                            {itemsToDisplay.map((it: any, idx: number) => (
+                            <div key={idx} className="flex flex-col p-3 bg-background/40 hover:bg-background/80 border border-border/40 rounded-xl group transition-all duration-200 relative">
+                                <div className="flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-2 min-w-0">
+                                    <div className="flex items-center gap-1.5 bg-surface border border-border p-0.5 rounded-lg">
+                                        <button 
+                                        onClick={() => handleUpdateItemQty(idx, -1, itemsToDisplay)}
+                                        className="size-6 flex items-center justify-center hover:bg-border rounded text-secondary hover:text-red-500"
+                                        >
+                                        <Minus size={10}/>
+                                        </button>
+                                        <span className="font-black text-emerald-600 dark:text-emerald-400 text-[11px] min-w-[14px] text-center">{it.quantity}</span>
+                                        <button 
+                                        onClick={() => handleUpdateItemQty(idx, 1, itemsToDisplay)}
+                                        className="size-6 flex items-center justify-center hover:bg-border rounded text-secondary hover:text-primary"
+                                        >
+                                        <Plus size={10}/>
+                                        </button>
+                                    </div>
+                                    <p className="min-w-0 text-[13px] font-bold text-text-main truncate leading-tight tracking-tight">
+                                    {it._display_name}
+                                    </p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="shrink-0 text-xs font-black text-text-main">
+                                        {formatPrice(it._display_price * it.quantity)}
+                                    </span>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); openNoteModal(idx, 'active'); }}
+                                        className={`shrink-0 p-1.5 rounded-lg border transition-all
+                                            ${it.note
+                                            ? 'bg-amber-500/10 border-amber-500/30 text-amber-600 hover:bg-amber-500/15'
+                                            : 'bg-background/50 border-border text-secondary hover:text-primary hover:bg-background/70'
+                                            }`}
+                                        title={it.note ? t('Sửa ghi chú') : t('Thêm ghi chú')}
                                     >
-                                      <Minus size={10}/>
+                                        <StickyNote size={11} />
                                     </button>
-                                    <span className="font-black text-emerald-600 dark:text-emerald-400 text-[11px] min-w-[14px] text-center">{it.quantity}</span>
-                                    <button 
-                                      onClick={() => handleUpdateItemQty(idx, 1, itemsToDisplay)}
-                                      className="size-6 flex items-center justify-center hover:bg-border rounded text-secondary hover:text-primary"
-                                    >
-                                      <Plus size={10}/>
-                                    </button>
-                                  </div>
-                                <p className="min-w-0 text-[13px] font-bold text-text-main truncate leading-tight tracking-tight">
-                                  {it._display_name}
-                                </p>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                  <span className="shrink-0 text-xs font-black text-text-main">
-                                      {formatPrice(it._display_price * it.quantity)}
-                                  </span>
-                                  <button
-                                      onClick={(e) => { e.stopPropagation(); openNoteModal(idx, 'active'); }}
-                                      className={`shrink-0 p-1.5 rounded-lg border transition-all
-                                          ${it.note
-                                          ? 'bg-amber-500/10 border-amber-500/30 text-amber-600 hover:bg-amber-500/15'
-                                          : 'bg-background/50 border-border text-secondary hover:text-primary hover:bg-background/70'
-                                          }`}
-                                      title={it.note ? t('Sửa ghi chú') : t('Thêm ghi chú')}
-                                  >
-                                      <StickyNote size={11} />
-                                  </button>
-                              </div>
+                                </div>
+                                </div>
+                                {it.note && (
+                                <div className="flex items-start gap-1.5 mt-2 ml-10 p-1.5 bg-amber-500/5 rounded-lg border border-amber-500/10">
+                                    <p className="text-[10px] font-medium text-amber-600 dark:text-amber-500 italic leading-snug line-clamp-2">{it.note}</p>
+                                </div>
+                                )}
                             </div>
-                            {it.note && (
-                              <div className="flex items-start gap-1.5 mt-2 ml-10 p-1.5 bg-amber-500/5 rounded-lg border border-amber-500/10">
-                                <p className="text-[10px] font-medium text-amber-600 dark:text-amber-500 italic leading-snug line-clamp-2">{it.note}</p>
-                              </div>
-                            )}
-                          </div>
-                        ))
+                            ))}
+                        </div>
                       )}
                     </div>
-                    {/* ... (Existing Footer Logic) ... */}
-                    <div className="flex justify-between items-end border-t border-border/60 pt-4 mb-4">
-                        <div className="flex flex-col">
-                           <span className="text-[10px] font-black text-secondary uppercase tracking-widest">{t('Total Balance')}</span>
-                           <div className="flex items-center gap-1.5 text-secondary mt-1">
-                              <span className="text-[10px] font-bold">{new Date(active.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                           </div>
+
+                    {/* FOOTER SECTION - FIXED */}
+                    <div className="p-5 pt-0 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shrink-0 bg-surface/5 lg:bg-transparent">
+                        <div className="flex justify-between items-end border-t border-border/60 pt-4 mb-4">
+                            <div className="flex flex-col">
+                            <span className="text-[10px] font-black text-secondary uppercase tracking-widest">{t('Total Balance')}</span>
+                            <div className="flex items-center gap-1.5 text-secondary mt-1">
+                                <span className="text-[10px] font-bold">{new Date(active.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                            </div>
+                            </div>
+                            <div className="text-right">
+                            {discountAmount > 0 && <span className="block text-xs font-bold text-red-500 mb-1">-{formatPrice(discountAmount)}</span>}
+                            <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 drop-shadow-sm">{formatPrice(finalDisplayTotal)}</span>
+                            </div>
                         </div>
-                        <div className="text-right">
-                           {discountAmount > 0 && <span className="block text-xs font-bold text-red-500 mb-1">-{formatPrice(discountAmount)}</span>}
-                           <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 drop-shadow-sm">{formatPrice(finalDisplayTotal)}</span>
+                        <div className="flex flex-col gap-2.5">
+                        {hasChanges ? (
+                            <button 
+                                onClick={() => handleUpdateOrder(active)} 
+                                className="w-full h-11 bg-emerald-500 text-white rounded-xl font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 hover:brightness-105 transition-all animate-in zoom-in-95 duration-200 uppercase tracking-wider"
+                                style={{ minHeight: 'var(--pos-btn-h)' }}
+                            >
+                                <RefreshCw size={16} /> {t('Update Order')}
+                            </button>
+                        ) : (
+                            <div className="flex gap-2.5">
+                                <button 
+                                    onClick={() => { 
+                                        setCurrentOrderItems(enriched.map((x: any) => ({ ...x, isNew: false })));
+                                        setIsAddItemsModalOpen(true); 
+                                    }} 
+                                    className="flex-1 h-11 bg-surface border border-border rounded-xl font-black text-xs flex items-center justify-center gap-2 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all text-text-main shadow-sm"
+                                    style={{ minHeight: 'var(--pos-btn-h)' }}
+                                >
+                                    <Plus size={16} className="text-emerald-500" /> {t('Add Items')}
+                                </button>
+                                <button 
+                                    onClick={() => setShowPaymentModal(true)} 
+                                    className="flex-1 h-11 bg-primary text-background rounded-xl font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-primary/20 hover:brightness-105 transition-all"
+                                    style={{ minHeight: 'var(--pos-btn-h)' }}
+                                >
+                                    <CreditCard size={16} /> {t('Pay')}
+                                </button>
+                            </div>
+                        )}
                         </div>
-                    </div>
-                    <div className="flex flex-col gap-2.5">
-                      {hasChanges ? (
-                          <button 
-                              onClick={() => handleUpdateOrder(active)} 
-                              className="w-full h-11 bg-emerald-500 text-white rounded-xl font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 hover:brightness-105 transition-all animate-in zoom-in-95 duration-200 uppercase tracking-wider"
-                              style={{ minHeight: 'var(--pos-btn-h)' }}
-                          >
-                              <RefreshCw size={16} /> {t('Update Order')}
-                          </button>
-                      ) : (
-                          <div className="flex gap-2.5">
-                              <button 
-                                  onClick={() => { 
-                                      setCurrentOrderItems(enriched.map((x: any) => ({ ...x, isNew: false })));
-                                      setIsAddItemsModalOpen(true); 
-                                  }} 
-                                  className="flex-1 h-11 bg-surface border border-border rounded-xl font-black text-xs flex items-center justify-center gap-2 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all text-text-main shadow-sm"
-                                  style={{ minHeight: 'var(--pos-btn-h)' }}
-                              >
-                                  <Plus size={16} className="text-emerald-500" /> {t('Add Items')}
-                              </button>
-                              <button 
-                                  onClick={() => setShowPaymentModal(true)} 
-                                  className="flex-1 h-11 bg-primary text-background rounded-xl font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-primary/20 hover:brightness-105 transition-all"
-                                  style={{ minHeight: 'var(--pos-btn-h)' }}
-                              >
-                                  <CreditCard size={16} /> {t('Pay')}
-                              </button>
-                          </div>
-                      )}
                     </div>
                   </div>
                 );
@@ -600,7 +627,7 @@ export const FloorPlan: React.FC = () => {
              <button onClick={() => setIsAddItemsModalOpen(false)} className="p-2 rounded-xl bg-border/20 flex items-center justify-center"><X size={24}/></button>
            </div>
            
-           <div className="flex-1 flex overflow-hidden">
+           <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
               <div className="flex-1 overflow-y-auto p-6 bg-surface/30 custom-scrollbar">
                 <div className="relative mb-6 max-w-md">
                    <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary" />
@@ -632,7 +659,7 @@ export const FloorPlan: React.FC = () => {
                   ))}
                 </div>
               </div>
-              <div className="w-[380px] border-l border-border bg-surface flex flex-col shadow-2xl shrink-0" style={{ borderWidth: 'var(--pos-border-strong)' }}>
+              <div className="w-full lg:w-[380px] h-[300px] lg:h-auto border-t lg:border-l lg:border-t-0 border-border bg-surface flex flex-col shadow-2xl shrink-0" style={{ borderWidth: 'var(--pos-border-strong)' }}>
                 <div className="p-5 border-b border-border bg-background/50 flex items-center justify-between">
                   <span className="font-bold text-xs uppercase tracking-widest text-primary">{t('Items to Add')}</span>
                   <span className="text-[10px] font-black bg-primary/10 text-primary px-2 py-0.5 rounded-full">{currentOrderItems.filter((i: any) => i.isNew).length} Món</span>
@@ -702,7 +729,7 @@ export const FloorPlan: React.FC = () => {
                     ))
                   )}
                 </div>
-                <div className="p-6 border-t border-border bg-background/50 space-y-4">
+                <div className="p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] border-t border-border bg-background/50 space-y-4">
                   <div className="flex justify-between items-end">
                      <span className="text-xs font-bold text-secondary uppercase">{t('Total')}</span>
                      <span className="text-3xl font-black text-primary">
@@ -769,7 +796,7 @@ export const FloorPlan: React.FC = () => {
                     const { items: enriched, totalAmount: subtotal } = enrichOrderDetails(active, menuItems);
                     const discountAmount = discountInfo?.amount || 0;
                     const finalTotal = Math.max(0, subtotal - discountAmount);
-                    printOrderReceipt({ 
+                    const completedOrder = { 
                         ...active, 
                         table: (tables || []).find(t => t.id === selectedTableId)?.label, 
                         status: 'Completed', 
@@ -779,7 +806,13 @@ export const FloorPlan: React.FC = () => {
                         discount_amount: discountAmount,
                         subtotal: subtotal,
                         staff: user?.user_metadata?.full_name || 'POS' 
-                    }); 
+                    };
+                    if (isSandboxed() && settings.printMethod !== 'rawbt') {
+                        const html = await generateReceiptHTML(completedOrder, settings.paperSize as any);
+                        openPreview({ html, title: 'In hóa đơn', meta: { action: 'FINAL_ON_PAYMENT' } });
+                    } else {
+                        printOrderReceipt(completedOrder);
+                    }
                   }
                   setShowPaymentModal(false); 
                   setSelectedTableId(null); 
@@ -787,7 +820,15 @@ export const FloorPlan: React.FC = () => {
                   setIsProcessingPayment(false); 
                 }
               }} 
-              onPrint={() => printOrderReceipt({ ...active, table: (tables || []).find(t => t.id === selectedTableId)?.label })} 
+              onPrint={() => {
+                  if (isSandboxed() && settings.printMethod !== 'rawbt') {
+                      generateReceiptHTML({ ...active, table: (tables || []).find(t => t.id === selectedTableId)?.label }, settings.paperSize as any).then(html => {
+                          openPreview({ html, title: 'In hóa đơn', meta: { action: 'REPRINT_ON_EDIT' } });
+                      });
+                  } else {
+                      printOrderReceipt({ ...active, table: (tables || []).find(t => t.id === selectedTableId)?.label });
+                  }
+              }} 
               totalAmount={subtotal} 
               paidAmount={getPaidAmount(active)}
               orderId={String(active.id)} 

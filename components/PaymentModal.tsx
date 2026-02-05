@@ -211,6 +211,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     const itemsToMove = Object.entries(splitSelection).map(([itemId, quantity]) => ({ itemId, quantity }));
     if (itemsToMove.length === 0) return;
     setView('split-target');
+    console.log('[split_bill] select table -> next step');
   };
 
   const handleExecuteSplit = async (targetTableId: string) => {
@@ -218,6 +219,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     if (itemsToMove.length === 0) return;
 
     setIsSplitting(true);
+    console.log(`[split_bill] start execute: target=${targetTableId}, items=${itemsToMove.length}`);
     try {
         const newOrderId = await splitOrder(orderId, itemsToMove, targetTableId);
         if (newOrderId) {
@@ -226,8 +228,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 onClose(); // Close modal to refresh parent view
             }, 1500);
         }
+        console.log(`[split_bill] success, new order: ${newOrderId}`);
     } catch (e: any) {
-        console.error(e);
+        console.error('[split_bill] error:', e);
         alert('Failed to split order: ' + e.message);
     } finally {
         setIsSplitting(false);
@@ -550,7 +553,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                           <div className="w-full md:w-1/2 space-y-4">
                             <div className="flex flex-col">
                                 <span className="text-[10px] text-secondary uppercase font-bold tracking-wider">{t('Bank')}</span>
-                                <span className="text-sm font-black text-text-main">{bankConfig.bankId}</span>
+                                {/* Use bankName (ShortName) for display */}
+                                <span className="text-sm font-black text-text-main">{bankConfig.bankName || bankConfig.bankId}</span>
                             </div>
                             <div className="flex flex-col">
                                 <span className="text-[10px] text-secondary uppercase font-bold tracking-wider">{t('Account Number')}</span>
@@ -584,10 +588,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               <button 
                 onClick={handlePrintBill}
                 disabled={isProcessing}
-                className="h-[var(--pos-btn-h)] px-4 bg-surface border border-border rounded-xl font-bold text-text-main hover:bg-border flex items-center justify-center gap-2 transition-all disabled:opacity-70"
+                className="h-[var(--pos-btn-h)] px-4 bg-surface border border-border rounded-xl font-bold text-text-main hover:bg-border flex items-center justify-center gap-2 transition-all disabled:opacity-70 flex-1 sm:flex-none"
               >
                 <Printer size={20} />
-                <span className="hidden sm:inline">{t('Print')}</span>
+                <span>{t('Print')}</span>
               </button>
               <button 
                 onClick={handleConfirmPayment} 

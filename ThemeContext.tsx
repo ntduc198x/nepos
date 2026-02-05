@@ -696,6 +696,7 @@ const translations: Record<Language, Record<string, string>> = {
     'Select table': 'Chọn bàn',
     'Draft': 'Giỏ tạm',
     'Selected': 'Đã chọn',
+    'Batch Add': 'Thêm món',
 
     // FloorPlan
     'Main Hall': 'Sảnh chính',

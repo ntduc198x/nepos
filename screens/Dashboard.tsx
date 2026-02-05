@@ -14,11 +14,12 @@ import { useAuth } from '../AuthContext';
 import { useData } from '../context/DataContext';
 import { PaymentModal } from '../components/PaymentModal';
 import { TransferModal } from '../components/TransferModal';
-import { printOrderReceipt } from '../services/printService';
+import { printOrderReceipt, generateReceiptHTML, isSandboxed } from '../services/printService';
 import { enrichOrderDetails, getTableLabel, isOrderActive, getPaidAmount } from '../utils/orderHelpers';
 import { useSettingsContext } from '../context/SettingsContext';
 import { useOrderOperations } from '../hooks/useOrderOperations'; 
 import { supabase } from '../supabase';
+import { usePrintPreview } from '../context/PrintPreviewContext';
 
 type Tab = 'Pending' | 'Completed' | 'Cancelled';
 
@@ -37,6 +38,7 @@ export const Dashboard: React.FC = () => {
   } = useData();
   
   const { performCancelOrder } = useOrderOperations();
+  const { openPreview } = usePrintPreview();
 
   const [activeTab, setActiveTab] = useState<Tab>('Pending');
   const [searchQuery, setSearchQuery] = useState('');
@@ -114,21 +116,26 @@ export const Dashboard: React.FC = () => {
         });
     }
     
-    // Staff: View Only Own Orders
+    // Staff: View Own Orders (Created OR Paid)
+    // ✅ LOGIC: Staff thấy đơn mình TẠO hoặc mình THANH TOÁN
     if (!user) return [];
-    
+
     const userEmail = (user.email || '').toLowerCase();
     const userId = String(user.id);
 
     return dailyHistory.filter(o => {
-      // Check user_id (Exact Match)
-      const isMyUserId = o.user_id && String(o.user_id) === userId;
+      // Check 1: user_id (người tạo đơn)
+      if (o.user_id && String(o.user_id) === userId) return true;
       
-      // Check staff email (Legacy/Auth email match)
-      const staffEmail = (o.staff || o.staff_name || '').toLowerCase();
-      const isMyEmail = staffEmail === userEmail;
+      // Check 2: staff_name (người thanh toán sau cùng - từ update mới)
+      const staffName = (o.staff_name || '').toLowerCase();
+      if (staffName === userEmail) return true;
       
-      return isMyUserId || isMyEmail;
+      // Check 3: staff field (fallback cho legacy orders)
+      const staffEmail = (o.staff || '').toLowerCase();
+      if (staffEmail === userEmail) return true;
+      
+      return false;
     });
   }, [orders, userRole, user, dayStart, dayEnd, adminIds]);
 
@@ -308,17 +315,40 @@ export const Dashboard: React.FC = () => {
     }
   };
 
+  // --- RAW PRINT LOGIC (No Guard) ---
+  const performPrint = async (order: any) => {
+    if (!order) return;
+    const { items: enriched } = enrichOrderDetails(order, menuItems);
+    const orderToPrint = { ...order, items: enriched };
+    
+    // If Sandbox or Generic Thermal (unknown), try Preview first for safety/debugging
+    // OR if user explicitly asks for Preview
+    if (isSandboxed() && settings.printMethod !== 'rawbt') {
+        const html = await generateReceiptHTML(orderToPrint, settings.paperSize as any);
+        openPreview({ html, title: 'In hóa đơn', meta: { action: 'REPRINT_ON_EDIT' } });
+    } else {
+        await printOrderReceipt(orderToPrint);
+    }
+  };
+
+  // --- GUARDED PRINT LOGIC (For Dashboard Button) ---
+  const handlePrintClick = async (order: any) => {
+    if (!order) return;
+    await guardSensitive('reprint_receipt', () => performPrint(order));
+  };
+
   const handlePaymentConfirm = async (method: any, shouldPrint: boolean, discountInfo?: any, paymentAmount?: number) => {
     if (!viewingOrder || !isOrderActive(viewingOrder.status)) return;
     setIsProcessingPayment(true);
     try {
       await checkoutSession(viewingOrder.id, String(viewingOrder.table_id || 'Takeaway'), method, discountInfo, paymentAmount);
       if (shouldPrint) {
+         // Auto-print upon completion
          const { items: enriched, totalAmount: subtotal } = enrichOrderDetails(viewingOrder, menuItems);
          const discountAmount = discountInfo?.amount || 0;
          const finalTotal = Math.max(0, subtotal - discountAmount);
          
-         printOrderReceipt({ 
+         const completedOrder = { 
              ...viewingOrder, 
              status: 'Completed', 
              payment_method: method, 
@@ -326,7 +356,8 @@ export const Dashboard: React.FC = () => {
              total_amount: finalTotal,
              discount_amount: discountAmount,
              subtotal: subtotal
-         });
+         };
+         await performPrint(completedOrder);
       }
       setShowPaymentModal(false);
       setSelectedOrderId(null);
@@ -352,14 +383,6 @@ export const Dashboard: React.FC = () => {
     } finally {
       setIsProcessingPayment(false);
     }
-  };
-
-  const handlePrint = (order: any) => {
-    if (!order || order.status !== 'Completed') return;
-    const { items } = enrichOrderDetails(order, menuItems);
-    guardSensitive('reprint_receipt', () => {
-        printOrderReceipt({ ...order, items });
-    });
   };
 
   if (dataLoading) return <div className="flex h-full items-center justify-center"><Loader2 className="animate-spin text-primary" size={48} /></div>;
@@ -684,7 +707,7 @@ export const Dashboard: React.FC = () => {
                         ) : viewingOrder.status === 'Completed' ? (
                           <div className="space-y-3">
                             <button 
-                              onClick={() => handlePrint(viewingOrder)}
+                              onClick={() => handlePrintClick(viewingOrder)}
                               className="w-full h-14 bg-surface border border-border text-text-main rounded-2xl font-black flex items-center justify-center gap-3 hover:bg-border transition-all"
                             >
                                <Printer size={20} /> {t('Print Receipt')}
@@ -896,7 +919,7 @@ export const Dashboard: React.FC = () => {
              isOpen={showPaymentModal} 
              onClose={() => setShowPaymentModal(false)} 
              onConfirm={handlePaymentConfirm} 
-             onPrint={() => handlePrint(viewingOrder)} 
+             onPrint={() => performPrint(viewingOrder)} 
              totalAmount={subtotal} 
              paidAmount={getPaidAmount(viewingOrder)}
              orderId={viewingOrder.id} 

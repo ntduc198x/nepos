@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   Search, BarChart3, List, X, ArrowLeft, Receipt, Clock, Wallet, 
   CreditCard, DollarSign, ShoppingBag, CheckCircle2, XCircle, 
@@ -19,6 +19,7 @@ import { printOrderReceipt } from '../services/printService';
 import { Order } from '../types';
 import { useSettingsContext } from '../context/SettingsContext';
 import { useAuth } from '../AuthContext';
+import { supabase } from '../supabase';
 
 type TabView = 'overview' | 'trends' | 'history' | 'payments' | 'staff' | 'export';
 type DateRangeType = 'today' | 'yesterday' | 'week' | 'custom';
@@ -28,7 +29,7 @@ export const Reports: React.FC = () => {
   const { t } = useTheme();
   const { menuItems, tables, getReportOrders } = useData();
   const { can, guardSensitive, settings } = useSettingsContext();
-  const { role } = useAuth();
+  const { role, user } = useAuth();
 
   // --- STATE ---
   const [activeTab, setActiveTab] = useState<TabView>('overview');
@@ -40,10 +41,38 @@ export const Reports: React.FC = () => {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   
   const [reportData, setReportData] = useState<Order[]>([]);
+  const [adminIds, setAdminIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
 
+  // --- REFS FOR STABLE FETCHING ---
+  // Fix: Prevent infinite loop by stabilizing function references
+  const canRef = useRef(can);
+  const getReportOrdersRef = useRef(getReportOrders);
+  const fetchingRef = useRef(false);
+
+  useEffect(() => { canRef.current = can; }, [can]);
+  useEffect(() => { getReportOrdersRef.current = getReportOrders; }, [getReportOrders]);
+
+  // Stable permission check
+  const canViewReport = useMemo(() => {
+    try {
+      return can('report.view');
+    } catch {
+      return false;
+    }
+  }, [can]);
+
+  // --- FETCH ADMINS (For Manager RBAC) ---
+  useEffect(() => {
+    if (role === 'manager') {
+      supabase.from('users').select('id').eq('role', 'admin')
+        .then(({ data }) => {
+          if (data) setAdminIds(new Set(data.map(u => u.id)));
+        });
+    }
+  }, [role]);
+
   // --- MASKING HELPER ---
-  // If settings.hideRevenue is true and user is staff, show "—"
   const maskedFormatPrice = (val: number) => {
     if (settings.hideRevenue && role === 'staff') {
         return "—";
@@ -54,23 +83,31 @@ export const Reports: React.FC = () => {
   // --- HANDLERS ---
   const handleDatePreset = (preset: DateRangeType) => {
     setDateRange(preset);
+    // Use local time for setting input values (YYYY-MM-DD)
     const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
     
+    // Helper to format YYYY-MM-DD in local time
+    const toLocalYMD = (date: Date) => {
+      const offset = date.getTimezoneOffset();
+      const localDate = new Date(date.getTime() - (offset * 60 * 1000));
+      return localDate.toISOString().split('T')[0];
+    };
+
     if (preset === 'today') {
+      const todayStr = toLocalYMD(now);
       setFromDate(todayStr);
       setToDate(todayStr);
     } else if (preset === 'yesterday') {
       const y = new Date(now);
       y.setDate(y.getDate() - 1);
-      const yStr = y.toISOString().split('T')[0];
+      const yStr = toLocalYMD(y);
       setFromDate(yStr);
       setToDate(yStr);
     } else if (preset === 'week') {
       const w = new Date(now);
       w.setDate(w.getDate() - 7);
-      setFromDate(w.toISOString().split('T')[0]);
-      setToDate(todayStr);
+      setFromDate(toLocalYMD(w));
+      setToDate(toLocalYMD(now));
     }
   };
 
@@ -78,42 +115,83 @@ export const Reports: React.FC = () => {
     handleDatePreset('today');
   }, []);
 
+  // --- MAIN FETCH EFFECT ---
   useEffect(() => {
-    const fetch = async () => {
-      // Gate check before fetching
-      if (!can('report.view')) return;
-      
+    const run = async () => {
+      // 1. Pre-flight Checks
+      if (!canViewReport) return;
+      if (!fromDate || !toDate) return;
+      if (fetchingRef.current) return; // Prevent re-entry
+
+      // 2. Lock & Loading State
+      fetchingRef.current = true;
       setIsLoading(true);
-      // Use DataContext helper which applies RBAC filters internally
-      const data = await getReportOrders({ 
-        from: new Date(fromDate).toISOString(), 
-        to: new Date(toDate + 'T23:59:59').toISOString() 
-      });
-      setReportData(data);
-      setIsLoading(false);
+
+      try {
+        // 3. Construct Date Objects (Local -> ISO UTC)
+        // Parsing YYYY-MM-DD manually ensures we treat it as local time start/end
+        const [fy, fm, fd] = fromDate.split('-').map(Number);
+        const [ty, tm, td] = toDate.split('-').map(Number);
+
+        const start = new Date(fy, fm - 1, fd, 0, 0, 0, 0);
+        const end = new Date(ty, tm - 1, td, 23, 59, 59, 999);
+
+        // 4. Call via Ref (Stable)
+        const data = await getReportOrdersRef.current({ 
+          from: start.toISOString(), 
+          to: end.toISOString() 
+        });
+
+        // 5. Update State
+        setReportData(data);
+      } catch (err) {
+        console.error('[Reports] fetch failed:', err);
+      } finally {
+        // 6. Cleanup & Unlock
+        setIsLoading(false);
+        fetchingRef.current = false;
+      }
     };
-    if (fromDate && toDate) fetch();
-  }, [fromDate, toDate, getReportOrders, can]);
+
+    run();
+  }, [fromDate, toDate, canViewReport]); // Minimal dependency array
+
+  // --- RBAC FILTERED DATA ---
+  // This is the single source of truth for charts and stats
+  const accessibleOrders = useMemo(() => {
+    // 1. Staff: Already filtered by DataContext (User ID check), but double check here for robustness
+    if (role === 'staff' && user) {
+        return reportData.filter(o => o.user_id === user.id || o.staff_name === user.email);
+    }
+    
+    // 2. Manager: Filter out Admin orders (if adminIds loaded)
+    if (role === 'manager') {
+        return reportData.filter(o => !o.user_id || !adminIds.has(o.user_id));
+    }
+
+    // 3. Admin: See all
+    return reportData;
+  }, [reportData, role, user, adminIds]);
 
   // --- AGGREGATION ---
   const stats = useMemo(() => {
-    const completed = reportData.filter(o => o.status === 'Completed');
+    const completed = accessibleOrders.filter(o => o.status === 'Completed');
     const revenue = completed.reduce((sum, o) => sum + (o.total_amount || 0), 0);
     const orderCount = completed.length;
-    const cancelledCount = reportData.filter(o => o.status === 'Cancelled').length;
+    const cancelledCount = accessibleOrders.filter(o => o.status === 'Cancelled').length;
     
     return {
       revenue,
       orders: orderCount,
       cancelled: cancelledCount,
       aov: orderCount ? revenue / orderCount : 0,
-      cancelRate: reportData.length ? (cancelledCount / reportData.length) * 100 : 0
+      cancelRate: accessibleOrders.length ? (cancelledCount / accessibleOrders.length) * 100 : 0
     };
-  }, [reportData]);
+  }, [accessibleOrders]);
 
   // New Financial Summary Aggregation
   const financialSummary = useMemo(() => {
-    const completed = reportData.filter(o => o.status === 'Completed');
+    const completed = accessibleOrders.filter(o => o.status === 'Completed');
     let grossSales = 0;
     let totalDiscount = 0;
     let netSales = 0;
@@ -139,15 +217,15 @@ export const Reports: React.FC = () => {
     });
 
     return { grossSales, totalDiscount, netSales, paymentMethods };
-  }, [reportData]);
+  }, [accessibleOrders]);
 
   const filteredHistory = useMemo(() => {
-    if (!reportData) return [];
-    return reportData.filter(o => 
+    if (!accessibleOrders) return [];
+    return accessibleOrders.filter(o => 
       o.id.toString().includes(searchQuery) || 
       getTableLabel(o, tables).toLowerCase().includes(searchQuery.toLowerCase())
     );
-  }, [reportData, searchQuery, tables]);
+  }, [accessibleOrders, searchQuery, tables]);
 
   // --- CHART DATA PREPARATION ---
   const hourlyData = useMemo(() => {
@@ -158,9 +236,13 @@ export const Reports: React.FC = () => {
       orders: 0
     }));
 
-    reportData.forEach(o => {
+    accessibleOrders.forEach(o => {
       if (o.status !== 'Completed') return;
-      const d = new Date(o.created_at);
+      // Use updated_at as primary timestamp for revenue
+      const timeStr = o.updated_at || o.created_at;
+      if (!timeStr) return;
+      
+      const d = new Date(timeStr);
       const h = d.getHours();
       if (hours[h]) {
         hours[h].amount += (o.total_amount || 0);
@@ -168,15 +250,13 @@ export const Reports: React.FC = () => {
       }
     });
 
-    // Determine active range to trim chart (optional, but looks better)
-    // For now, let's just return the full 24h or a slice based on business hours if we wanted
     return hours;
-  }, [reportData]);
+  }, [accessibleOrders]);
 
   const topItemsData = useMemo(() => {
     const itemMap = new Map<string, number>();
     
-    reportData.forEach(o => {
+    accessibleOrders.forEach(o => {
       if (o.status !== 'Completed') return;
       const items = o.items || [];
       items.forEach((item: any) => {
@@ -192,7 +272,7 @@ export const Reports: React.FC = () => {
       .slice(0, 5); // Top 5
 
     return sorted;
-  }, [reportData]);
+  }, [accessibleOrders]);
 
   // --- ACTIONS ---
   const handleCopyId = (id: string) => {
@@ -210,8 +290,8 @@ export const Reports: React.FC = () => {
     const result = await guardSensitive('export_data', () => {
         const csvContent = "data:text/csv;charset=utf-8," 
             + "Order ID,Time,Table,Status,Total,Payment Method,Staff\n"
-            + reportData.map(o => 
-                `${o.id},${o.created_at},${getTableLabel(o, tables)},${o.status},${o.total_amount},${o.payment_method || ''},${o.staff_name || ''}`
+            + accessibleOrders.map(o => 
+                `${o.id},${o.updated_at || o.created_at},${getTableLabel(o, tables)},${o.status},${o.total_amount},${o.payment_method || ''},${o.staff_name || ''}`
             ).join("\n");
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
@@ -245,7 +325,7 @@ export const Reports: React.FC = () => {
   );
 
   // --- PERMISSION BLOCK ---
-  if (!can('report.view')) {
+  if (!canViewReport) {
       return (
           <div className="flex-1 flex flex-col items-center justify-center h-full bg-background p-8 text-center animate-in fade-in">
               <div className="p-8 bg-surface border border-border rounded-3xl shadow-sm max-w-md flex flex-col items-center gap-4">
@@ -539,7 +619,7 @@ export const Reports: React.FC = () => {
                                                         #{order.id.slice(-6)}
                                                     </td>
                                                     <td className="px-6 py-4 font-bold text-text-main">{getTableLabel(order, tables)}</td>
-                                                    <td className="px-6 py-4 text-secondary">{new Date(order.created_at || '').toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</td>
+                                                    <td className="px-6 py-4 text-secondary">{new Date(order.updated_at || order.created_at || '').toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</td>
                                                     <td className="px-6 py-4 font-black text-primary">{maskedFormatPrice(order.total_amount || 0)}</td>
                                                     <td className="px-6 py-4">
                                                         <span className={`px-2 py-1 rounded text-[10px] font-black uppercase border ${
@@ -590,7 +670,7 @@ export const Reports: React.FC = () => {
                                             #{order.id.slice(-8)} {copiedId === order.id ? <Check size={10} className="text-emerald-500"/> : <Copy size={10}/>}
                                         </span>
                                         <span>•</span>
-                                        <span>{new Date(order.created_at || '').toLocaleString()}</span>
+                                        <span>{new Date(order.updated_at || order.created_at || '').toLocaleString()}</span>
                                     </div>
                                 </div>
                                 <button onClick={() => setSelectedOrderId(null)} className="p-2 hover:bg-border rounded-xl text-secondary"><X size={24}/></button>

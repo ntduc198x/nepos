@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { supabase } from '../supabase';
@@ -239,7 +240,9 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
     });
     
     const total = rawItems.reduce((s: number, i: any) => s + (i.price * i.quantity), 0);
-    const actualStaffEmail = user?.email || currentStaffEmail;
+    
+    // Correct Staff Name Logic
+    const staffDisplayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || currentStaffEmail;
     
     const metadata = { 
         id: orderId, 
@@ -248,14 +251,15 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
         status: 'Pending', 
         total: total, 
         total_amount: total, 
-        staff: actualStaffEmail, 
-        staff_name: actualStaffEmail, 
+        staff: staffDisplayName, 
+        staff_name: staffDisplayName, 
         user_id: user?.id, 
         guests: data.guests || 1, 
         created_at: now, 
         updated_at: now,
         version: 1,
-        is_offline: true 
+        is_offline: true,
+        note: data.note || ''
     };
 
     await db.orders.put(metadata);
@@ -326,7 +330,8 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
 
     let localUpdates = { 
         ...updates, 
-        user_id: user?.id,
+        // Keep existing user_id if not present in updates
+        // user_id: user?.id, // Should we overwrite user_id? Maybe only updated_by? For now, careful not to lose ownership
         updated_at: new Date().toISOString(),
         version: (order.version || 1) + 1
     };
@@ -365,8 +370,11 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
         await db.orders.update(orderId, localUpdates);
     }
 
+    // Handover Updates: send remaining top-level fields (like 'note', 'status', etc.)
     const { items, order_items, table, time, staff, total, ...handoverUpdates } = localUpdates;
+    
     if (Object.keys(handoverUpdates).length > 0) {
+      console.log(`[updateLocalOrder] Queuing update_order for ${orderId}. Keys: ${Object.keys(handoverUpdates).join(', ')}`);
       await addToQueue('update_order', { id: orderId, updates: handoverUpdates });
     }
     
@@ -390,6 +398,8 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
       finalTotal = paymentAmount;
     }
 
+    const paymentStaffName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || currentStaffEmail;
+
     const updates: any = {
       status: 'Completed',
       paid: true,
@@ -399,6 +409,8 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
       discount_value: discountInfo?.value,
       total_amount: finalTotal,
       subtotal_amount: order.total || 0, // Canonical Field
+      staff_name: paymentStaffName,
+      staff: paymentStaffName, 
       updated_at: new Date().toISOString(),
       version: (order.version || 1) + 1
     };
@@ -452,66 +464,243 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
 
 
   const getReportOrders = async (range: { from: string, to: string }, opts?: { limit?: number }) => {
-    // 1. Enforce RBAC
-    if (role === 'manager' && !['manager', 'all'].includes(settings.reportAccess)) return [];
-    if (role === 'staff' && settings.reportAccess !== 'all') return [];
+    // Helper to filter orders by time range (Updated At)
+    const isInRange = (o: any) => {
+        const ts = o.updated_at || o.created_at || '';
+        return ts >= range.from && ts <= range.to;
+    };
+
+    // Helper: Local Data Fetch (DRY)
+    const fetchLocalData = async () => {
+        const local = await db.orders.where('status').anyOf('Completed', 'Cancelled').toArray();
+        const filtered = local.filter(isInRange);
+        
+        const enriched = [];
+        for (const o of filtered) { 
+            // Local filtering for Staff
+            if (role === 'staff' && user && o.staff_name !== user.email && o.user_id !== user.id) continue;
+            
+            const items = await db.order_items.where('order_id').equals(o.id).toArray(); 
+            enriched.push({ ...o, order_items: items, items }); 
+        }
+        return enriched as Order[];
+    };
 
     // 2. Offline Logic
     if (!navigator.onLine) {
-      const local = await db.orders.where('status').equals('Completed').filter(o => {
-          const ts = o.created_at || '';
-          const inRange = ts >= range.from && ts <= range.to;
-          if (!inRange) return false;
-          // Filter for staff
-          if (role === 'staff' && user) {
-             return o.staff_name === user.email || o.user_id === user.id;
-          }
-          return true;
-        }).limit(opts?.limit || 1000).toArray();
-        
-      const enriched = [];
-      for (const o of local) { 
-          const items = await db.order_items.where('order_id').equals(o.id).toArray(); 
-          enriched.push({ ...o, order_items: items, items }); 
-      }
-      return enriched as Order[];
+      return fetchLocalData();
     }
 
-    // 3. Online Logic
+    // 3. Online Logic (Supabase + Local Merge)
     try {
+      // 3a. Flush Queue First
+      await processQueue(true).catch(e => console.warn("Queue flush warning:", e));
+
+      // 3b. Query Supabase
+      // NOTE: Using 'updated_at' for revenue reports as requested
       let query = supabase.from('orders').select('*, order_items(*)')
-        .eq('status', 'Completed')
-        .gte('created_at', range.from)
-        .lte('created_at', range.to)
-        .order('created_at', { ascending: false })
+        .in('status', ['Completed', 'Cancelled'])
+        .gte('updated_at', range.from) 
+        .lte('updated_at', range.to)   
+        .order('updated_at', { ascending: false }) 
         .limit(opts?.limit || 1000);
 
-      // Filter for Staff using OR to catch staff_name OR user_id matches
+      // RBAC: Staff can ONLY fetch their own data from server
       if (role === 'staff' && user) {
          query = query.or(`staff_name.eq.${user.email},user_id.eq.${user.id}`);
       }
 
-      const { data, error } = await query;
+      const { data: serverData, error } = await query;
       if (error) throw error;
       
-      return (data || []).map(o => ({ 
+      const serverOrders = (serverData || []).map(o => ({ 
           ...o, 
           total: o.total_amount || 0, 
           staff: o.staff_name || 'POS', 
           items: o.order_items 
       })) as Order[];
+
+      // 3c. Merge with Local Unsynced/Pending Orders
+      // This bridges the gap between "Dashboard (Local)" and "Reports (Server)" for just-paid items.
+      const localPending = await db.orders
+        .where('status').anyOf('Completed', 'Cancelled')
+        .filter(o => o.sync_status !== 'synced' && isInRange(o))
+        .toArray();
+
+      const mergedMap = new Map<string, Order>();
+      
+      // Add server orders first
+      serverOrders.forEach(o => mergedMap.set(o.id, o));
+      
+      // Overlay local pending orders (they are more recent/accurate for this device)
+      for (const o of localPending) {
+          // Local filtering for Staff
+          if (role === 'staff' && user && o.staff_name !== user.email && o.user_id !== user.id) continue;
+          
+          const items = await db.order_items.where('order_id').equals(o.id).toArray();
+          const enriched = { ...o, order_items: items, items } as Order;
+          mergedMap.set(o.id, enriched);
+      }
+
+      return Array.from(mergedMap.values()).sort((a, b) => 
+        new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime()
+      );
+
     } catch (e) { 
-        console.error("Report fetch error:", e);
-        return []; 
+        console.warn("Report fetch failed (Online), falling back to local data:", e);
+        return fetchLocalData(); 
     }
   };
 
-  // Merge, Move, Split omitted for brevity but should follow same pattern:
-  // update updated_at, increment version, push canonical payload.
-  // ... (Merge, Move, Split implementations would go here) ...
-  const mergeOrders = async () => {};
-  const moveTable = async () => {};
-  const splitOrder = async () => null;
+  const mergeOrders = async (sourceTableId: string, targetTableId: string) => {
+    console.log(`[mergeOrders] start: ${sourceTableId} -> ${targetTableId}`);
+    await ensureDb();
+    const sourceOrder = orders.find(o => String(o.table_id) === String(sourceTableId) && OPERATIONAL_STATUSES.includes(o.status));
+    const targetOrder = orders.find(o => String(o.table_id) === String(targetTableId) && OPERATIONAL_STATUSES.includes(o.status));
+
+    if (!sourceOrder || !targetOrder) throw new Error("Invalid tables for merge");
+
+    const sourceItems = await db.order_items.where('order_id').equals(sourceOrder.id).toArray();
+    const updates = sourceItems.map(item => ({ ...item, order_id: targetOrder.id }));
+    
+    await db.transaction('rw', [db.orders, db.order_items], async () => {
+        await db.order_items.bulkPut(updates); 
+        
+        const allTargetItems = await db.order_items.where('order_id').equals(targetOrder.id).toArray();
+        const newTotal = allTargetItems.reduce((sum, i) => sum + (i.price * i.quantity), 0);
+        
+        await db.orders.update(targetOrder.id, { 
+            total_amount: newTotal, 
+            total: newTotal,
+            updated_at: new Date().toISOString() 
+        });
+
+        await db.orders.update(sourceOrder.id, { 
+            status: 'Cancelled', 
+            note: `Merged to ${targetTableId}`,
+            updated_at: new Date().toISOString() 
+        });
+    });
+
+    const finalTargetItems = await db.order_items.where('order_id').equals(targetOrder.id).toArray();
+    await addToQueue('update_order_items', { order_id: targetOrder.id, items: finalTargetItems });
+    await addToQueue('update_order', { id: sourceOrder.id, updates: { status: 'Cancelled', note: `Merged to ${targetTableId}` } });
+    await addToQueue('update_order', { id: targetOrder.id, updates: { total_amount: finalTargetItems.reduce((s, i) => s + (i.price * i.quantity), 0) } });
+    
+    console.log(`[mergeOrders] ok`);
+  };
+
+  const moveTable = async (sourceTableId: string, targetTableId: string) => {
+    console.log(`[moveTable] start: ${sourceTableId} -> ${targetTableId}`);
+    await ensureDb();
+    const sourceOrder = orders.find(o => String(o.table_id) === String(sourceTableId) && OPERATIONAL_STATUSES.includes(o.status));
+    if (!sourceOrder) throw new Error("Source table has no active order");
+
+    const targetOrder = orders.find(o => String(o.table_id) === String(targetTableId) && OPERATIONAL_STATUSES.includes(o.status));
+    if (targetOrder) throw new Error("Target table is occupied");
+
+    const updates = {
+        table_id: targetTableId,
+        table: (tables.find(t => String(t.id) === String(targetTableId))?.label || targetTableId),
+        updated_at: new Date().toISOString()
+    };
+
+    await db.orders.update(sourceOrder.id, updates);
+    await addToQueue('update_order', { id: sourceOrder.id, updates });
+    console.log(`[moveTable] ok`);
+  };
+
+  const splitOrder = async (sourceOrderId: string, itemsToMove: { itemId: string; quantity: number }[], targetTableId: string) => {
+    console.log(`[splitOrder] start from ${sourceOrderId} to ${targetTableId}`);
+    await ensureDb();
+    
+    const sourceOrder = await db.orders.get(sourceOrderId);
+    if (!sourceOrder) throw new Error("Source order not found");
+
+    let targetOrder = null;
+    // Special handling: if target is Takeaway, do NOT merge into existing orders (create new one always)
+    // Otherwise, try to find existing order on target table
+    if (targetTableId !== 'Takeaway') {
+        targetOrder = orders.find(o => String(o.table_id) === String(targetTableId) && OPERATIONAL_STATUSES.includes(o.status));
+    }
+    
+    let targetOrderId = targetOrder?.id;
+    const now = new Date().toISOString();
+
+    // Prepare staff/user metadata correctly
+    const staffName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || currentStaffEmail;
+    const userId = user?.id;
+
+    await db.transaction('rw', [db.orders, db.order_items, db.offline_queue], async () => {
+        if (!targetOrder) {
+            targetOrderId = self.crypto.randomUUID();
+            const newOrder = {
+                id: targetOrderId,
+                table_id: targetTableId,
+                table: (tables.find(t => String(t.id) === String(targetTableId))?.label || targetTableId),
+                status: 'Pending',
+                total: 0, total_amount: 0,
+                staff: staffName, // Fixed: Use correct display name
+                staff_name: staffName, // Canonical
+                user_id: userId, // Fixed: Add user_id
+                created_at: now, updated_at: now,
+                guests: 1,
+                is_offline: true,
+                version: 1,
+                note: sourceOrder.note || '' // Optional: Copy original note
+            };
+            await db.orders.add(newOrder);
+            await addToQueue('new_order', { order: newOrder });
+        }
+
+        const sourceItemsMap = new Map();
+        (await db.order_items.where('order_id').equals(sourceOrderId).toArray()).forEach(i => sourceItemsMap.set(i.id, i));
+
+        const newTargetItems = [];
+        const updatedSourceItems = [];
+
+        for (const moveReq of itemsToMove) {
+            const item = sourceItemsMap.get(moveReq.itemId);
+            if (!item) continue;
+
+            if (item.quantity === moveReq.quantity) {
+                item.order_id = targetOrderId;
+                await db.order_items.put(item); 
+                newTargetItems.push(item);
+            } else {
+                item.quantity -= moveReq.quantity;
+                await db.order_items.put(item);
+                updatedSourceItems.push(item);
+
+                const newItem = {
+                    ...item,
+                    id: self.crypto.randomUUID(),
+                    order_id: targetOrderId,
+                    quantity: moveReq.quantity
+                };
+                await db.order_items.add(newItem);
+                newTargetItems.push(newItem);
+            }
+        }
+
+        const remainingSourceItems = await db.order_items.where('order_id').equals(sourceOrderId).toArray();
+        const sourceTotal = remainingSourceItems.reduce((s, i) => s + (i.price * i.quantity), 0);
+        await db.orders.update(sourceOrderId, { total: sourceTotal, total_amount: sourceTotal, updated_at: now });
+
+        const allTargetItems = await db.order_items.where('order_id').equals(targetOrderId!).toArray();
+        const targetTotal = allTargetItems.reduce((s, i) => s + (i.price * i.quantity), 0);
+        await db.orders.update(targetOrderId!, { total: targetTotal, total_amount: targetTotal, updated_at: now });
+        
+        await addToQueue('update_order_items', { order_id: sourceOrderId, items: remainingSourceItems });
+        await addToQueue('update_order', { id: sourceOrderId, updates: { total_amount: sourceTotal } });
+        
+        await addToQueue('update_order_items', { order_id: targetOrderId, items: allTargetItems });
+        await addToQueue('update_order', { id: targetOrderId, updates: { total_amount: targetTotal } });
+    });
+
+    console.log(`[splitOrder] ok. New Order: ${targetOrderId}`);
+    return targetOrderId || null;
+  };
 
   return (
     <DataContext.Provider value={{

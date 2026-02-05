@@ -6,7 +6,7 @@ import {
   ShoppingCart, Utensils, Check,
   Armchair, ShoppingBag, ChevronUp, WifiOff, Loader2, X, ArrowLeft,
   Clock, Printer, Receipt, StickyNote, Info, Save, Edit, Trash2, Settings, RefreshCw,
-  ChevronRight, CreditCard, AlertTriangle, Upload, Delete, Link as LinkIcon
+  ChevronRight, CreditCard, AlertTriangle, Upload, Delete, Link as LinkIcon, Menu as MenuIcon
 } from 'lucide-react';
 import { MenuItem } from '../types';
 import { useCurrency } from '../CurrencyContext';
@@ -15,7 +15,7 @@ import { useNetwork } from '../context/NetworkContext';
 import { useAuth } from '../AuthContext';
 import { useData } from '../context/DataContext';
 import { PaymentModal } from '../components/PaymentModal';
-import { printOrderReceipt } from '../services/printService';
+import { printOrderReceipt, isSandboxed, generateReceiptHTML } from '../services/printService';
 import { enrichOrderDetails, getTableLabel, isOrderActive, getPaidAmount } from '../utils/orderHelpers';
 import { supabase } from '../supabase';
 import { useSettingsContext } from '../context/SettingsContext';
@@ -23,6 +23,7 @@ import { useToast } from '../context/ToastContext';
 import { playBeep } from '../services/SoundService';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { useOrderOperations } from '../hooks/useOrderOperations';
+import { usePrintPreview } from '../context/PrintPreviewContext';
 
 const BOTTOM_NAV_HEIGHT = 70;
 
@@ -50,9 +51,9 @@ const ActiveOrdersContent: React.FC<{
   const [listHeight, setListHeight] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem("RESBAR_SWITCHLIST_HEIGHT");
-      return saved ? parseInt(saved, 10) : 180;
+      return saved ? parseInt(saved, 10) : 120; // Changed default from 180 to 120
     }
-    return 180;
+    return 120;
   });
 
   // Pointer Capture Refs
@@ -70,8 +71,8 @@ const ActiveOrdersContent: React.FC<{
   const handlePointerMove = (e: React.PointerEvent) => {
     if (!isDragging.current) return;
     const delta = e.clientY - startY.current;
-    // Bounds: Min 160px, Max ~600px
-    const newHeight = Math.min(Math.max(160, startHeight.current + delta), 600);
+    // Bounds: Min 80px (was 160), Max ~600px
+    const newHeight = Math.min(Math.max(80, startHeight.current + delta), 600);
     setListHeight(newHeight);
   };
 
@@ -192,6 +193,7 @@ export const Menu: React.FC = () => {
   const { user } = useAuth();
   const { can, settings, guardSensitive } = useSettingsContext();
   const { showToast } = useToast();
+  const { openPreview } = usePrintPreview();
   
   const { 
     menuItems: items = [], 
@@ -553,8 +555,7 @@ export const Menu: React.FC = () => {
         const subtotal = totalAmount;
         const discountAmount = discountInfo?.amount || 0;
         const finalTotal = Math.max(0, subtotal - discountAmount);
-        
-        printOrderReceipt({ 
+        const completedOrder = { 
             ...viewingOrder, 
             status: 'Completed', 
             payment_method: method, 
@@ -562,7 +563,13 @@ export const Menu: React.FC = () => {
             total_amount: finalTotal, 
             discount_amount: discountAmount,
             subtotal: subtotal
-        });
+        };
+        if (isSandboxed() && settings.printMethod !== 'rawbt') {
+            const html = await generateReceiptHTML(completedOrder, settings.paperSize as any);
+            openPreview({ html, title: 'In hóa đơn', meta: { action: 'FINAL_ON_PAYMENT' } });
+        } else {
+            printOrderReceipt(completedOrder);
+        }
       }
       setShowPaymentModal(false);
       setViewingOrder(null);
@@ -899,9 +906,49 @@ export const Menu: React.FC = () => {
                 </div>
             )}
         </div>
+        
+        {/* Floating Cart Button for Mobile/Vertical Tablet */}
+        <div className="lg:hidden fixed bottom-[80px] left-0 right-0 p-4 z-40 pointer-events-none">
+          <button
+            onClick={() => setIsCartSheetOpen(true)}
+            className="w-full bg-primary text-background shadow-2xl shadow-primary/30 h-14 rounded-2xl flex items-center justify-between px-6 pointer-events-auto active:scale-95 transition-all border border-white/10 backdrop-blur-sm"
+          >
+            <div className="flex items-center gap-3">
+              <div className="bg-background/20 px-2 py-1 rounded-lg text-xs font-black min-w-[24px] text-center">
+                {cartTotals.count + activeOrders.length}
+              </div>
+              <span className="font-bold text-sm">Xem Giỏ Hàng</span>
+            </div>
+            <span className="font-black text-lg">{formatPrice(cartTotals.amount)}</span>
+          </button>
+        </div>
       </div>
 
-      <div className="hidden lg:flex w-80 xl:w-96 bg-surface border-l border-border flex-col shadow-2xl shrink-0 z-20 h-full overflow-hidden" style={{ borderWidth: 'var(--pos-border-strong)' }}>
+      {/* Backdrop for Mobile Sidebar */}
+      {isCartSheetOpen && (
+        <div 
+          className="fixed inset-0 z-[45] bg-black/60 backdrop-blur-sm lg:hidden animate-in fade-in" 
+          onClick={() => setIsCartSheetOpen(false)} 
+        />
+      )}
+
+      {/* Sidebar - Mobile Drawer / Desktop Fixed */}
+      <div 
+        className={`bg-surface border-l border-border flex-col shadow-2xl shrink-0 z-50 h-full overflow-hidden transition-transform duration-300
+          lg:translate-x-0 lg:static lg:flex lg:w-80 lg:xl:w-96 lg:z-20
+          fixed inset-y-0 right-0 w-full sm:w-[400px] ${isCartSheetOpen ? 'translate-x-0 flex' : 'translate-x-full hidden lg:flex'}`}
+        style={{ borderWidth: 'var(--pos-border-strong)' }}
+      >
+          {/* Mobile Close Button Header */}
+          <div className="lg:hidden flex items-center justify-between p-4 border-b border-border bg-background">
+             <h3 className="font-bold text-lg text-text-main flex items-center gap-2">
+                <ShoppingBag className="text-primary"/> Giỏ Hàng & Đơn
+             </h3>
+             <button onClick={() => setIsCartSheetOpen(false)} className="p-2 bg-surface hover:bg-border rounded-lg text-secondary transition-colors">
+                <X size={20}/>
+             </button>
+          </div>
+
           {/* ... Sidebar Tabs ... */}
           <div className="h-16 border-b border-border flex p-1 bg-background shrink-0">
               <button onClick={() => setSidebarTab('cart')} className={`flex-1 flex items-center justify-center gap-2 rounded-lg text-[10px] uppercase font-black transition-all relative ${sidebarTab === 'cart' ? 'bg-surface text-primary shadow-sm' : 'text-secondary'}`}>
@@ -916,7 +963,7 @@ export const Menu: React.FC = () => {
           
           <div className="flex-1 overflow-hidden">
             {sidebarTab === 'cart' ? (
-               <CartList isSheet={false} />
+               <CartList isSheet={isCartSheetOpen} />
             ) : (
               <div className="flex flex-col h-full">
                  {!viewingOrder ? (
@@ -1019,7 +1066,7 @@ export const Menu: React.FC = () => {
                          })()}
                       </div>
 
-                      <div className="p-4 border-t border-border bg-background space-y-4">
+                      <div className={`p-4 border-t border-border bg-background space-y-4 ${isCartSheetOpen ? 'pb-[calc(env(safe-area-inset-bottom,0px)+80px)]' : ''}`}>
                          {(() => {
                             const { items: enriched, totalAmount: subtotal } = enrichOrderDetails(viewingOrder, items);
                             const displayItems = modifiedItems || enriched;
@@ -1433,7 +1480,14 @@ export const Menu: React.FC = () => {
              onConfirm={handlePayment} 
              onPrint={() => {
                 const { items: enriched } = enrichOrderDetails(viewingOrder, items);
-                printOrderReceipt({ ...viewingOrder, items: enriched });
+                const orderToPrint = { ...viewingOrder, items: enriched };
+                if (isSandboxed() && settings.printMethod !== 'rawbt') {
+                    generateReceiptHTML(orderToPrint, settings.paperSize as any).then(html => {
+                        openPreview({ html, title: 'In hóa đơn', meta: { action: 'REPRINT_ON_EDIT' } });
+                    });
+                } else {
+                    printOrderReceipt(orderToPrint);
+                }
              }} 
              totalAmount={subtotal} 
              paidAmount={getPaidAmount(viewingOrder)}

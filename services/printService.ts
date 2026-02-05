@@ -33,7 +33,24 @@ const generateQR = async (text: string, width = 150): Promise<string> => {
     return await QRCode.toDataURL(text, { width: width, margin: 0, errorCorrectionLevel: 'M' });
   } catch (err) {
     console.error("Lỗi tạo QR Offline:", err);
-    return ''; 
+    return '';
+  }
+};
+
+// New Helper: Fetch remote image and convert to Base64 for embedding
+const fetchImageAsBase64 = async (url: string): Promise<string | null> => {
+  try {
+    const response = await fetch(url);
+    const blob = await response.blob();
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    console.warn("Error fetching QR image:", error);
+    return null;
   }
 };
 
@@ -44,7 +61,7 @@ const generateQR = async (text: string, width = 150): Promise<string> => {
 export const generateReceiptHTML = async (order: any, paperSize: '58mm' | '80mm' = '80mm') => {
   const subtotal = order.subtotal || order.total_amount || order.total || 0;
   const discount = order.discount_amount || 0;
-  const finalTotal = order.total_amount ?? (subtotal - discount); 
+  const finalTotal = order.total_amount ?? (subtotal - discount);
 
   // --- Settings & Config ---
   const storedSettingsStr = localStorage.getItem('RESBAR_SETTINGS_STORE');
@@ -65,12 +82,12 @@ export const generateReceiptHTML = async (order: any, paperSize: '58mm' | '80mm'
   const headerFontSize = isSmall ? '14px' : '16px';
 
   const config = {
-      storeName: storedSettings?.counterName || "RESBAR POS",
-      address: storedSettings?.counterAddress || "",
-      phone: storedSettings?.counterPhone || "",
-      wifiName: storedSettings?.wifiName || "",
-      wifiPass: storedSettings?.wifiPassword || "",
-      footerMessage: storedSettings?.receiptNote || "Xin cảm ơn & Hẹn gặp lại!"
+    storeName: storedSettings?.counterName || "ThongDong Coffee F&B",
+    address: storedSettings?.counterAddress || "",
+    phone: storedSettings?.counterPhone || "",
+    wifiName: storedSettings?.wifiName || "",
+    wifiPass: storedSettings?.wifiPassword || "",
+    footerMessage: storedSettings?.receiptNote || "Xin cảm ơn & Hẹn gặp lại!"
   };
 
   const bankConfigStr = localStorage.getItem('bank_config');
@@ -87,27 +104,30 @@ export const generateReceiptHTML = async (order: any, paperSize: '58mm' | '80mm'
   // --- QR Generation ---
   let qrHtml = '';
   if (showQr) {
-    const qrContent = `https://img.vietqr.io/image/${bankConfig.bankId}-${bankConfig.accountNo}-compact2.png?amount=${finalTotal}&addInfo=${encodeURIComponent(order.id)}&accountName=${encodeURIComponent(bankConfig.accountName)}`;
-    const qrSize = isSmall ? 120 : 160; 
-    const qrBase64 = await generateQR(qrContent, qrSize);
-    
-    if (qrBase64) {
-        qrHtml = `
-          <div class="divider"></div>
-          <div class="qr-section">
-            <div class="qr-caption">QUÉT MÃ THANH TOÁN</div>
-            <img src="${qrBase64}" class="qr-img" />
-            <div class="qr-bank">${bankConfig.bankId} • ${bankConfig.accountNo}</div>
-            <div class="qr-owner">${bankConfig.accountName}</div>
-          </div>
-        `;
-    }
+    const qrUrl = `https://img.vietqr.io/image/${bankConfig.bankId}-${bankConfig.accountNo}-compact.png?amount=${finalTotal}&addInfo=${encodeURIComponent(order.id)}&accountName=${encodeURIComponent(bankConfig.accountName)}`;
+
+    // FIX: Use the actual image from VietQR, do NOT generate a QR code of the URL string.
+    // We convert it to Base64 to ensure it prints reliably (no loading race conditions).
+    let imgSource = await fetchImageAsBase64(qrUrl);
+
+    // Fallback: If fetch fails (e.g. offline/CORS), use URL directly and hope printer/browser handles it.
+    if (!imgSource) imgSource = qrUrl;
+
+    qrHtml = `
+      <div class="divider"></div>
+      <div class="qr-section">
+        <div class="qr-caption">QUÉT MÃ THANH TOÁN</div>
+        <img src="${imgSource}" class="qr-img" />
+        <div class="qr-bank">${bankConfig.accountNo}</div>
+        <div class="qr-owner">${bankConfig.accountName}</div>
+      </div>
+    `;
   }
 
   // --- Wifi HTML ---
   let wifiHtml = '';
   if (showWifi) {
-      wifiHtml = `
+    wifiHtml = `
         <div class="divider"></div>
         <div class="wifi-box">
             <div>WIFI: <strong>${config.wifiName}</strong></div>
@@ -239,7 +259,7 @@ export const generateReceiptHTML = async (order: any, paperSize: '58mm' | '80mm'
           .qr-section { text-align: center; margin: 10px 0; }
           .qr-caption { font-size: 9px; font-weight: 700; letter-spacing: 1px; margin-top: 4px; }
           /* QR Image scaling: Ensures print clarity (250px max width for 80mm) */
-          .qr-img { width: 65%; max-width: 250px; height: auto; display: block; margin: 0 auto; image-rendering: pixelated; }
+          .qr-img { width: 80%; max-width: 250px; height: auto; display: block; margin: 0 auto; image-rendering: pixelated; }
           .qr-bank { font-size: 9px; font-weight: 600; margin-top: 2px; }
           .qr-owner { font-size: 9px; text-transform: uppercase; }
 
@@ -267,18 +287,6 @@ export const generateReceiptHTML = async (order: any, paperSize: '58mm' | '80mm'
             <div class="meta-group">
               <span class="label">Date:</span>
               <span class="value">${formatDate(order.created_at)}</span>
-            </div>
-            <div class="meta-group">
-              <span class="label">Table:</span>
-              <span class="value">${order.table || order.table_id}</span>
-            </div>
-            <div class="meta-group">
-              <span class="label">Staff:</span>
-              <span class="value truncate">${order.staff_name || 'POS'}</span>
-            </div>
-            <div class="meta-group">
-              <span class="label">Type:</span>
-              <span class="value uppercase">${isTakeaway ? 'TAKEAWAY' : 'DINE-IN'}</span>
             </div>
 
             <div class="divider"></div>
@@ -338,7 +346,7 @@ export const printViaIframe = (html: string) => {
     doc.open(); doc.write(html); doc.close();
     iframe.onload = () => {
       setTimeout(() => {
-        try { iframe.contentWindow?.focus(); iframe.contentWindow?.print(); } 
+        try { iframe.contentWindow?.focus(); iframe.contentWindow?.print(); }
         catch (e) { console.error("Print failed:", e); }
         setTimeout(() => document.body.removeChild(iframe), 1500);
       }, 500);

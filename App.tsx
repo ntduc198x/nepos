@@ -86,7 +86,7 @@ function AppContent({ currentView, setCurrentView }: { currentView: View, setCur
       case 'settings':
         return <Settings onLogout={() => setCurrentView('login')} />;
       default:
-        return <FloorPlan />;
+        return <Menu />;
     }
   };
 
