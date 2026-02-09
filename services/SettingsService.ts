@@ -20,7 +20,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   quickOrder: false, defaultOrderType: 'dine-in', confirmCancelItem: true,
   allowSplitBill: false, allowMergeBill: true, enableDiscount: true, maxDiscountPercent: 100,
   enableTableMap: true, enableAreas: false, tableTimeAlert: false, tableTimeLimit: 120,
-  storeName: 'ResBar Coffee', storeAddress: '', storePhone: '', serviceMode: 'dine-in',
+  storeName: 'Nepos Coffee', storeAddress: '', storePhone: '', serviceMode: 'dine-in',
   autoNewOrder: false, confirmCancelOrder: true, serviceFee: 0, roundingMode: 'none',
   printerName: 'Generic Thermal', printMethod: 'browser', paperSize: '80mm', autoPrint: true, autoPrintReceipt: true,
   printTemp: false, reprintOnEdit: true, showQr: true, showStoreInfo: true, receiptFontSize: 'medium',
@@ -311,20 +311,19 @@ export class SettingsService {
         result.executed = false;
         result.reason = 'SANDBOX_BLOCKED';
         if (action === 'TEST_PRINT') {
-            result.html = await printTestTicket();
+            result.html = await printTestTicket(settings);
         } else {
-            const safePaperSize = settings.paperSize === '58mm' ? '58mm' : '80mm';
-            result.html = await generateReceiptHTML(order, safePaperSize);
+            result.html = await generateReceiptHTML(order, settings);
         }
         return result;
       }
 
       if (action === 'TEST_PRINT') {
-          const html = await printTestTicket();
+          const html = await printTestTicket(settings);
           const { printViaIframe } = await import('./printService');
           printViaIframe(html);
       } else {
-          await printOrderReceipt(order);
+          await printOrderReceipt(order, settings);
       }
       
       result.executed = true;

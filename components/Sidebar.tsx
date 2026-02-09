@@ -140,7 +140,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView }) =
     { id: 'settings', icon: Settings, label: 'Settings' }
   ];
 
-  const secondaryItems: NavItem[] = [
+  const secondaryItems: NavItem[] = role === 'staff' ? [] : [
     { id: 'inventory', icon: Package, label: 'Stock' }
   ];
 
@@ -210,7 +210,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView }) =
               <ChefHat size={24} strokeWidth={2.5} />
             </div>
             <div className="flex flex-col">
-              <h1 className="text-text-main text-lg font-bold leading-tight">ResBar POS</h1>
+              <h1 className="text-text-main text-lg font-bold leading-tight">Nepos</h1>
               <p className="text-secondary text-xs font-medium">{t('Main Branch')}</p>
             </div>
           </div>
@@ -388,3 +388,4 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView }) =
     </>
   );
 };
+    

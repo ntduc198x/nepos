@@ -565,10 +565,10 @@ export const Menu: React.FC = () => {
             subtotal: subtotal
         };
         if (isSandboxed() && settings.printMethod !== 'rawbt') {
-            const html = await generateReceiptHTML(completedOrder, settings.paperSize as any);
+            const html = await generateReceiptHTML(completedOrder, settings);
             openPreview({ html, title: 'In hóa đơn', meta: { action: 'FINAL_ON_PAYMENT' } });
         } else {
-            printOrderReceipt(completedOrder);
+            printOrderReceipt(completedOrder, settings);
         }
       }
       setShowPaymentModal(false);
@@ -787,7 +787,7 @@ export const Menu: React.FC = () => {
                     className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all border ${isEditMode ? 'bg-amber-500 text-white border-amber-600 shadow-lg' : 'bg-surface text-secondary border-border hover:border-primary'}`}
                   >
                     <Settings size={14} className={isEditMode ? 'animate-spin' : ''} />
-                    {isEditMode ? t('Thoát') : t('Quản Lý')}
+                    {isEditMode ? t('Exit') : t('Manage')}
                     {!isOnline && <WifiOff size={12} className="text-red-500" />}
                   </button>
                 )}
@@ -862,19 +862,21 @@ export const Menu: React.FC = () => {
                                         <button 
                                           onClick={(e) => {
                                             e.stopPropagation();
+                                            console.log('[MENU_EDIT] Clicked edit item:', item.id);
                                             setEditingItem(item);
+                                            // Fix: Use nullish coalescing to safely handle missing properties before toString()
                                             setItemForm({ 
-                                              name: item.name, 
-                                              price: item.price.toString(), 
-                                              category: item.category, 
-                                              image: item.image, 
-                                              stock: item.stock.toString(),
+                                              name: item.name || '', 
+                                              price: (item.price ?? 0).toString(), 
+                                              category: item.category || 'Coffee', 
+                                              image: item.image || '', 
+                                              stock: (item.stock ?? 0).toString(),
                                               description: item.description || '' 
                                             });
-                                            setUploadPreview(item.image);
+                                            setUploadPreview(item.image || null);
                                             setIsItemModalOpen(true);
                                           }}
-                                          className="p-2 bg-white text-black rounded-lg shadow-xl"
+                                          className="p-2 bg-white text-black rounded-lg shadow-xl hover:scale-110 transition-transform"
                                         >
                                           <Edit size={18} />
                                         </button>
@@ -883,7 +885,7 @@ export const Menu: React.FC = () => {
                                             e.stopPropagation();
                                             setPendingDelete(item);
                                           }}
-                                          className="p-2 bg-white text-red-500 rounded-lg shadow-xl"
+                                          className="p-2 bg-white text-red-500 rounded-lg shadow-xl hover:scale-110 transition-transform"
                                         >
                                           <Trash2 size={18} />
                                         </button>
@@ -1122,7 +1124,7 @@ export const Menu: React.FC = () => {
                                    <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-center">
                                       <p className="text-emerald-500 font-bold text-xs uppercase tracking-widest">{t('Order Completed')}</p>
                                       <button 
-                                        onClick={() => guardSensitive('reprint_receipt', () => printOrderReceipt({ ...viewingOrder, items: enriched }))}
+                                        onClick={() => guardSensitive('reprint_receipt', () => printOrderReceipt({ ...viewingOrder, items: enriched }, settings))}
                                         className="mt-3 w-full py-2 bg-emerald-500 text-white rounded-lg font-bold text-xs shadow-sm flex items-center justify-center gap-2"
                                         style={{ minHeight: 'var(--pos-btn-h)' }}
                                       >
@@ -1274,159 +1276,6 @@ export const Menu: React.FC = () => {
         </div>
       )}
 
-      {isAddItemsModalOpen && (
-        <div className="fixed inset-0 z-[100] bg-background flex flex-col animate-in slide-in-from-bottom duration-300">
-           {/* Add Items Modal Implementation */}
-           <div className="h-16 flex items-center justify-between px-6 border-b border-border bg-surface shrink-0 shadow-sm">
-             <div className="flex items-center gap-4">
-                <button onClick={() => setIsAddItemsModalOpen(false)} className="p-2 hover:bg-border rounded-xl transition-all">
-                  <ArrowLeft size={24} />
-                </button>
-                <div>
-                   <h2 className="text-xl font-black flex items-center gap-2">
-                     <Plus className="text-primary" /> {t('Add to Order')}
-                   </h2>
-                   <p className="text-[10px] font-bold text-secondary uppercase tracking-widest">{getTableLabel(viewingOrder, tables)}</p>
-                </div>
-             </div>
-             <button onClick={() => setIsAddItemsModalOpen(false)} className="p-2 rounded-xl bg-border/20 flex items-center justify-center"><X size={24}/></button>
-           </div>
-           
-           <div className="flex-1 flex overflow-hidden">
-              {/* Similar implementation as Main Menu add items */}
-              <div className="flex-1 overflow-y-auto p-6 bg-surface/30 custom-scrollbar">
-                <div className="relative mb-6 max-w-md">
-                   <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary" />
-                   <input 
-                      type="text" 
-                      placeholder={t('Search Menu...')} 
-                      value={addItemsSearch} 
-                      onChange={e => setAddItemsSearch(e.target.value)} 
-                      className="w-full bg-surface border border-border rounded-xl px-10 py-3 outline-none focus:ring-1 focus:ring-primary shadow-sm" 
-                   />
-                </div>
-                
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 2xl:grid-cols-6 gap-4">
-                  {items.filter(i => i.name.toLowerCase().includes(addItemsSearch.toLowerCase())).map((item: any) => (
-                    <button 
-                      key={item.id} 
-                      onClick={() => {
-                        const existingIdx = currentOrderItems.findIndex(i => String(i.menu_item_id) === String(item.id) && i.isNew);
-                        if (existingIdx > -1) {
-                           const next = [...currentOrderItems];
-                           next[existingIdx].quantity += 1;
-                           setCurrentOrderItems(next);
-                        } else {
-                           setCurrentOrderItems([...currentOrderItems, {
-                              menu_item_id: item.id,
-                              quantity: 1,
-                              price: item.price,
-                              _display_name: item.name,
-                              _display_price: item.price,
-                              isNew: true
-                           }]);
-                        }
-                      }} 
-                      className="bg-surface border border-border rounded-2xl p-3 text-left hover:border-primary transition-all group flex flex-col h-full shadow-sm relative active:scale-95"
-                    >
-                      <div className="aspect-video bg-background rounded-lg mb-2 overflow-hidden shrink-0">
-                         {item.image ? <img src={item.image} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-secondary/30"><Utensils size={24}/></div>}
-                      </div>
-                      <h4 className="font-bold text-xs line-clamp-2 flex-1 mb-2 tracking-tight group-hover:text-primary transition-colors">{item.name}</h4>
-                      <p className="text-primary font-bold text-sm">{formatPrice(item.price)}</p>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="w-[380px] border-l border-border bg-surface flex flex-col shadow-2xl shrink-0">
-                {/* ... (Existing Right Panel for Add Items) ... */}
-                <div className="p-5 border-b border-border bg-background/50 flex items-center justify-between">
-                  <span className="font-bold text-xs uppercase tracking-widest text-primary">{t('Items to Add')}</span>
-                  <span className="text-[10px] font-black bg-primary/10 text-primary px-2 py-0.5 rounded-full">{currentOrderItems.length} Món</span>
-                </div>
-
-                <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
-                  {currentOrderItems.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-secondary opacity-30 gap-3">
-                       <ShoppingBag size={48} strokeWidth={1}/>
-                       <p className="text-xs font-bold">{t('Chọn món để thêm')}</p>
-                    </div>
-                  ) : (
-                    currentOrderItems.map((it, idx) => (
-                      <div key={idx} className={`bg-background p-3 rounded-xl border transition-all ${it.isNew ? 'border-primary/40 shadow-sm shadow-primary/5' : 'border-border opacity-80'}`}>
-                        <div className="flex items-start justify-between gap-2 mb-3">
-                          <div className="flex-1 min-w-0">
-                            <p className="font-bold text-[13px] text-text-main truncate leading-tight">{it._display_name || it.snapshot_name}</p>
-                            {it.note && <p className="text-amber-600 text-[11px] font-bold italic leading-tight mt-1 line-clamp-2">{it.note}</p>}
-                            <p className="text-primary font-black text-xs mt-1">{formatPrice(it._display_price || it.price || 0)}</p>
-                          </div>
-                          <div className="flex items-center gap-1.5 bg-surface border border-border p-1 rounded-lg">
-                            <button onClick={() => {
-                               const next = [...currentOrderItems];
-                               if (next[idx].quantity > 1) {
-                                 next[idx].quantity -= 1;
-                                 setCurrentOrderItems(next);
-                               } else if (next[idx].isNew) {
-                                 next.splice(idx, 1);
-                                 setCurrentOrderItems(next);
-                               }
-                            }} className="size-6 flex items-center justify-center hover:bg-border rounded text-secondary hover:text-red-500"><Minus size={12}/></button>
-                            <span className="font-black text-xs min-w-[20px] text-center">{it.quantity}</span>
-                            <button onClick={() => {
-                               const next = [...currentOrderItems];
-                               next[idx].quantity += 1;
-                               setCurrentOrderItems(next);
-                            }} className="size-6 flex items-center justify-center hover:bg-border rounded text-secondary hover:text-primary"><Plus size={12}/></button>
-                          </div>
-                        </div>
-                        
-                        <button 
-                          onClick={() => {
-                            setNoteInput(it.note || '');
-                            setEditingNoteItem({ idx, currentNote: it.note || '', source: 'add_items' });
-                            setIsNoteModalOpen(true);
-                          }}
-                          className={`w-full flex items-center gap-2.5 p-2 rounded-lg text-left transition-all border ${it.note ? 'bg-amber-500/5 border-amber-500/20 shadow-sm' : 'bg-surface border-transparent hover:border-border'}`}
-                        >
-                          <div className={`p-1.5 rounded-md ${it.note ? 'bg-amber-500 text-white shadow-sm' : 'bg-secondary/10 text-secondary'}`}>
-                            <StickyNote size={14} />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            {it.note ? (
-                              <p className="text-amber-700 text-[10px] font-black uppercase tracking-tighter truncate">{it.note}</p>
-                            ) : (
-                              <span className="text-text-main text-xs font-bold">{t('Ghi chú')}</span>
-                            )}
-                          </div>
-                          <ChevronRight size={14} className="text-secondary/30" />
-                        </button>
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                <div className="p-6 border-t border-border bg-background/50 space-y-4">
-                  <div className="flex justify-between items-end">
-                     <span className="text-xs font-bold text-secondary uppercase">{t('Total')}</span>
-                     <span className="text-3xl font-black text-primary">
-                       {formatPrice(currentOrderItems.reduce((s, it) => s + ((it._display_price || it.price || 0) * it.quantity), 0))}
-                     </span>
-                  </div>
-                  <button 
-                    disabled={currentOrderItems.filter(i => i.isNew).length === 0}
-                    onClick={handleConfirmAddItems} 
-                    className="w-full py-4 bg-primary text-background font-bold text-lg rounded-xl shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-70"
-                  >
-                    <Check size={20} /> {t('Confirm Add')}
-                  </button>
-                </div>
-              </div>
-           </div>
-        </div>
-      )}
-
-      {/* Other Modals (Checkout, Item Edit, etc) same as before */}
       {showCheckoutModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
            <div className="bg-surface border border-border rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
@@ -1482,11 +1331,11 @@ export const Menu: React.FC = () => {
                 const { items: enriched } = enrichOrderDetails(viewingOrder, items);
                 const orderToPrint = { ...viewingOrder, items: enriched };
                 if (isSandboxed() && settings.printMethod !== 'rawbt') {
-                    generateReceiptHTML(orderToPrint, settings.paperSize as any).then(html => {
+                    generateReceiptHTML(orderToPrint, settings).then(html => {
                         openPreview({ html, title: 'In hóa đơn', meta: { action: 'REPRINT_ON_EDIT' } });
                     });
                 } else {
-                    printOrderReceipt(orderToPrint);
+                    printOrderReceipt(orderToPrint, settings);
                 }
              }} 
              totalAmount={subtotal} 

@@ -177,6 +177,52 @@ const SYNC_HANDLERS: Record<QueueActionType, (data: any) => Promise<void>> = {
         await db.audit_logs.update(payload.id, { synced_at: new Date().toISOString() }).catch(() => {});
     }
     console.log(`[SYNC_AUDIT] Action=${payload.action} OK`);
+  },
+
+  'table_layout_sync': async (data) => {
+    const { tables } = data;
+    const payload = tables.map((t: any) => ({
+      id: t.id,
+      label: t.label,
+      x: t.x,
+      y: t.y,
+      width: t.width,
+      height: t.height,
+      shape: t.shape,
+      seats: t.seats,
+      status: t.status 
+    }));
+
+    // 1. Upsert Tables (Add/Update)
+    if (payload.length > 0) {
+        const { error } = await supabase.from('tables').upsert(payload, { onConflict: 'id' });
+        if (error) throw error;
+    }
+
+    // 2. Prune Tables (Delete those not in the new list)
+    const activeIds = payload.map((t: any) => t.id);
+    let query = supabase.from('tables').delete();
+    
+    if (activeIds.length > 0) {
+        // Fix: Pass array directly to 'in' filter. Do not format as string.
+        query = query.not('id', 'in', activeIds);
+    } else {
+        // Careful: If array is empty, we delete ALL tables (user cleared floor plan)
+        // We use a safe filter to select all rows (id is not null)
+        query = query.not('id', 'is', null);
+    }
+
+    const { error: delError } = await query;
+    if (delError) throw delError;
+
+    console.log(`[SYNC_TABLES] Synced ${tables.length} tables (Upserted & Pruned).`);
+  },
+
+  'table_delete': async (data) => {
+    const { id } = data;
+    const { error } = await supabase.from('tables').delete().eq('id', id);
+    if (error) throw error;
+    console.log(`[SYNC_TABLE_DELETE] Table ${id} deleted on server.`);
   }
 };
 

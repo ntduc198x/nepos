@@ -1,4 +1,3 @@
-
 import React, { useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './screens/Dashboard';
@@ -22,9 +21,16 @@ import { ToastProvider } from './context/ToastContext';
 import { LockScreen } from './components/LockScreen';
 
 function AppContent({ currentView, setCurrentView }: { currentView: View, setCurrentView: (v: View) => void }) {
-  const { user, loading } = useAuth();
+  const { user, role, loading } = useAuth();
   const { brightness } = useTheme();
   const { settings } = useSettingsContext();
+
+  // --- SECURITY: REDIRECT RESTRICTED VIEWS ---
+  useEffect(() => {
+    if (role === 'staff' && currentView === 'inventory') {
+      setCurrentView('menu');
+    }
+  }, [role, currentView, setCurrentView]);
 
   // --- GLOBAL SHORTCUTS ---
   useEffect(() => {
@@ -82,6 +88,7 @@ function AppContent({ currentView, setCurrentView }: { currentView: View, setCur
       case 'reports':
          return <Reports />;
       case 'inventory':
+        if (role === 'staff') return <Menu />;
         return <Inventory />;
       case 'settings':
         return <Settings onLogout={() => setCurrentView('login')} />;

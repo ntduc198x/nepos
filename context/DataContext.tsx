@@ -1,10 +1,10 @@
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { supabase } from '../supabase';
 import { useNetwork } from './NetworkContext';
 import { useAuth } from '../AuthContext';
-import { MenuItem, Order } from '../types';
+import { MenuItem, Order, TableData } from '../types';
 import { db } from '../db';
 import { useDB, DBProvider } from './DBProvider';
 import { mergeOrderItems, normalizeNote } from '../utils/orderHelpers';
@@ -23,12 +23,18 @@ interface DataContextType {
   loading: boolean;
   currentStaffEmail: string;
   refreshData: () => Promise<void>;
+  // Incremental Pull APIs
+  refreshOrdersForDashboard: () => Promise<void>;
+  refreshOrdersForReports: (fromISO: string, toISO: string) => Promise<void>;
+  
   addLocalOrder: (fullOrderData: any) => Promise<string>;
   addItemToSession: (orderId: string, newItems: any[]) => Promise<void>;
   checkoutSession: (orderId: string, tableId: string, method: string, discountInfo?: { amount: number, type: 'percent' | 'amount', value: number }, paymentAmount?: number) => Promise<void>;
   updateLocalOrder: (orderId: string, updates: any) => Promise<void>;
   cancelOrder: (orderId: string | number) => Promise<void>;
   updateTableStatus: (tableId: string, status: string) => Promise<void>;
+  saveTableLayout: (newTables: TableData[]) => Promise<void>;
+  deleteTable: (tableId: string) => Promise<void>; 
   addMenuItem: (item: Partial<MenuItem>) => Promise<void>;
   updateMenuItem: (id: number | string, updates: Partial<MenuItem>) => Promise<void>;
   deleteMenuItem: (id: number | string) => Promise<void>;
@@ -55,7 +61,54 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
   const [loading, setLoading] = useState(true);
   const [currentStaffEmail, setCurrentStaffEmail] = useState<string>(() => localStorage.getItem('active_staff_email') || 'POS');
 
+  // Refs for Pull Control
+  const isPulling = useRef(false);
+  const lastRefreshTime = useRef(0);
+
   const menuItems = dbMenuItems;
+
+  // --- REALTIME SUBSCRIPTION FOR TABLES ---
+  useEffect(() => {
+    if (!user || !isOnline) return;
+
+    console.log("[Realtime] Subscribing to 'tables' changes...");
+    const channel = supabase
+      .channel('realtime-tables')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'tables' },
+        async (payload) => {
+          console.log('[Realtime] Table Change Received:', payload);
+          
+          try {
+            if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+              // Upsert local DB. payload.new contains the full record.
+              const newTableData = payload.new;
+              if (newTableData && newTableData.id) {
+                 await db.pos_tables.put(newTableData);
+              }
+            } else if (payload.eventType === 'DELETE') {
+              // Delete from local DB. payload.old contains the ID (if Replica Identity is set correctly).
+              const deletedId = payload.old?.id;
+              if (deletedId) {
+                 await db.pos_tables.delete(deletedId);
+              }
+            }
+          } catch (e) {
+            console.error('[Realtime] Failed to update local table DB:', e);
+          }
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+           console.log("[Realtime] Connected to table updates.");
+        }
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, isOnline]);
 
   // Reconcile pending queue items with visible orders
   const orders = useMemo(() => {
@@ -109,7 +162,7 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
           const bInQueue = pendingQueueOrderIds.has(b.id);
           if (aInQueue && !bInQueue) return -1;
           if (!aInQueue && bInQueue) return 1;
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime(); 
+          return new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime(); 
         });
         finalOrders.push(sorted[0]);
         duplicatesToReconcile.push(...sorted.slice(1));
@@ -138,7 +191,187 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
     }
   };
 
+  // --- CORE RECONCILIATION LOGIC ---
+  const reconcileOrders = async (serverOrders: any[], serverItems: any[]) => {
+    await db.transaction('rw', [db.orders, db.order_items], async () => {
+        const validOrderIds = new Set<string>();
+        
+        // 1. Process Orders
+        for (const sOrder of serverOrders) {
+            const localOrder = await db.orders.get(sOrder.id);
+            let resolveServer = true; // Default: Server wins (Synced state)
+
+            // Conflict Check: If local has unsynced changes
+            if (localOrder && localOrder.sync_status !== 'synced') {
+                const serverTime = new Date(sOrder.updated_at || sOrder.created_at).getTime();
+                const localTime = new Date(localOrder.updated_at || localOrder.created_at).getTime();
+                const serverStatus = sOrder.status;
+                const localStatus = localOrder.status;
+
+                // --- Automatic Conflict Resolution Rules ---
+                const isServerFinal = ['Completed', 'Cancelled'].includes(serverStatus);
+                const isServerMuchNewer = serverTime > (localTime + 5 * 60 * 1000); // 5 mins newer
+                const isLocalActive = ['Pending', 'Cooking', 'Ready'].includes(localStatus);
+
+                if (isServerFinal) {
+                    // Rule 1: Server 'Completed'/'Cancelled' overrides everything.
+                    resolveServer = true;
+                } else if (isServerMuchNewer) {
+                    // Rule 3 (Optional): Server is significantly newer, likely processed elsewhere.
+                    resolveServer = true;
+                } else if (isLocalActive) {
+                    // Rule 2: Local is 'Pending'/'Cooking'. Keep local as source of truth to prevent disrupting user.
+                    resolveServer = false;
+                } else {
+                    resolveServer = false;
+                }
+
+                if (!resolveServer) {
+                    console.log(`[Sync] Conflict Auto-Resolved: Keeping Local Order ${sOrder.id} (Local: ${localStatus}, Server: ${serverStatus})`);
+                }
+            }
+
+            if (resolveServer) {
+                // Safe to Overwrite / Insert
+                const cleanOrder = { 
+                    ...sOrder, 
+                    total: sOrder.total_amount || 0, 
+                    staff: sOrder.staff_name || 'POS',
+                    sync_status: 'synced'
+                };
+                await db.orders.put(cleanOrder);
+                validOrderIds.add(sOrder.id);
+            }
+        }
+
+        // 2. Process Items
+        // Only replace items for orders where we accepted the server version
+        if (serverItems.length > 0) {
+            const idsArray = Array.from(validOrderIds);
+            
+            if (idsArray.length > 0) {
+                // Delete old items for valid orders
+                await db.order_items.where('order_id').anyOf(idsArray).delete();
+                
+                // Filter server items belonging to valid orders
+                const itemsToInsert = serverItems
+                    .filter(i => validOrderIds.has(i.order_id))
+                    .map(item => ({ 
+                        ...item, 
+                        snapshot_name: item.snapshot_name || item.name || 'Unknown' 
+                    }));
+                
+                if (itemsToInsert.length > 0) {
+                    await db.order_items.bulkPut(itemsToInsert);
+                }
+            }
+        }
+    });
+  };
+
+  // --- INCREMENTAL PULL FUNCTION ---
+  const pullOrdersRange = async ({ fromISO, toISO, statusFilter }: { fromISO?: string, toISO?: string, statusFilter?: string[] }) => {
+    if (!navigator.onLine || !user) return;
+    
+    // Guard: Prevent undefined ranges which spam the logs
+    if (!fromISO || !toISO) {
+        // Silent return is better to avoid noise if logic is correct elsewhere
+        return;
+    }
+
+    // Mutex: Prevent parallel syncs
+    if (isPulling.current) {
+        return; 
+    }
+
+    try {
+        isPulling.current = true;
+        console.log(`[Pull] Range: ${fromISO} to ${toISO} [${statusFilter?.join(',') || 'ALL'}]`);
+        
+        let query = supabase.from('orders').select('*');
+        
+        if (fromISO) query = query.gte('updated_at', fromISO);
+        if (toISO) query = query.lte('updated_at', toISO);
+        if (statusFilter && statusFilter.length > 0) query = query.in('status', statusFilter);
+        
+        // RBAC filtering
+        if (role === 'staff' && user) {
+             query = query.or(`staff_name.eq.${user.email},user_id.eq.${user.id}`);
+        }
+
+        const { data: serverOrders, error } = await query;
+        if (error) throw error;
+        
+        if (!serverOrders || serverOrders.length === 0) return;
+
+        const orderIds = serverOrders.map(o => o.id);
+        
+        // Fetch Items in Chunks
+        let allServerItems: any[] = [];
+        const chunkSize = 50;
+        for (let i = 0; i < orderIds.length; i += chunkSize) {
+            const chunk = orderIds.slice(i, i + chunkSize);
+            const { data: itemsChunk, error: itemsError } = await supabase
+                .from('order_items')
+                .select('*')
+                .in('order_id', chunk);
+            
+            if (itemsError) console.error("Error fetching items chunk:", itemsError);
+            if (itemsChunk) allServerItems = [...allServerItems, ...itemsChunk];
+        }
+
+        await reconcileOrders(serverOrders, allServerItems);
+        console.log(`[Pull] Synced ${serverOrders.length} orders.`);
+
+    } catch (e) {
+        console.error("[Pull] Error:", e);
+    } finally {
+        isPulling.current = false;
+    }
+  };
+
+  const refreshOrdersForDashboard = async () => {
+      // Strategy:
+      // 1. Pull 'Operational' orders (Pending, Cooking, Ready). 
+      //    Use a safe default range (e.g., last 30 days) instead of undefined to satisfy guard.
+      // 2. Pull 'Completed/Cancelled' orders for TODAY only.
+      
+      const now = new Date();
+      const nowISO = now.toISOString();
+      
+      // Default range for Active Orders (Catch-all for recent active orders)
+      const past30Days = new Date(now);
+      past30Days.setDate(past30Days.getDate() - 30);
+      
+      const todayStart = new Date(now);
+      todayStart.setHours(0,0,0,0);
+      const todayISO = todayStart.toISOString();
+
+      // EXECUTE SEQUENTIALLY to avoid Mutex lock conflict
+      await pullOrdersRange({ 
+          fromISO: past30Days.toISOString(), 
+          toISO: nowISO, 
+          statusFilter: OPERATIONAL_STATUSES 
+      });
+      
+      await pullOrdersRange({ 
+          fromISO: todayISO, 
+          toISO: nowISO, 
+          statusFilter: ['Completed', 'Cancelled'] 
+      });
+  };
+
+  const refreshOrdersForReports = async (fromISO: string, toISO: string) => {
+      await pullOrdersRange({ fromISO, toISO, statusFilter: ['Completed', 'Cancelled'] });
+  };
+
+  // Legacy refreshData (Full Reload) - Keeping for initial load or manual full sync
   const refreshData = useCallback(async () => {
+    // Throttle refresh triggers (2 seconds)
+    const now = Date.now();
+    if (now - lastRefreshTime.current < 2000) return;
+    lastRefreshTime.current = now;
+
     try {
       await ensureDb();
     } catch (e) {
@@ -151,63 +384,26 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
     try {
       await processQueue(true);
 
+      // Refresh Menu & Tables (Small datasets, full refresh ok)
       const [menuRes, tablesRes] = await Promise.all([
         supabase.from('menu_items').select('*').order('name'),
         supabase.from('tables').select('*')
       ]);
 
-      const recentDate = new Date(Date.now() - 7*24*3600*1000).toISOString();
-      const ordersRes = await supabase.from('orders')
-        .select('*')
-        .or(`status.in.(${OPERATIONAL_STATUSES.join(',')}),and(status.eq.Completed,created_at.gt.${recentDate})`);
-
-      if (ordersRes.error) throw ordersRes.error;
-      const serverOrders = ordersRes.data || [];
-      const orderIds = serverOrders.map(o => o.id);
-
-      let allItems: any[] = [];
-      if (orderIds.length > 0) {
-          const chunkSize = 50; 
-          for (let i = 0; i < orderIds.length; i += chunkSize) {
-              const chunk = orderIds.slice(i, i + chunkSize);
-              const { data: itemsChunk, error: itemsError } = await supabase
-                  .from('order_items')
-                  .select('*')
-                  .in('order_id', chunk);
-              
-              if (itemsError) console.error("Error fetching items chunk:", itemsError);
-              if (itemsChunk) allItems = [...allItems, ...itemsChunk];
-          }
-      }
-
-      // Use string literals for tables to avoid property access issues
-      await db.transaction('rw', ['menu_items', 'orders', 'order_items', 'pos_tables'], async () => {
+      await db.transaction('rw', ['menu_items', 'pos_tables'], async () => {
         if (menuRes.data) {
           const localItems = await db.menu_items.filter(i => String(i.id).startsWith('LOCAL_')).toArray();
           await db.menu_items.clear();
           await db.menu_items.bulkPut([...menuRes.data.map(i => ({...i, sync_status: 'synced'})), ...localItems]);
         }
-        
         if (tablesRes.data) { 
             await db.pos_tables.clear(); 
             await db.pos_tables.bulkPut(tablesRes.data); 
         }
-        
-        await db.orders.bulkPut(serverOrders.map(o => ({ 
-            ...o, 
-            total: o.total_amount || 0, 
-            staff: o.staff_name || 'POS',
-            sync_status: 'synced'
-        })));
-        
-        if (orderIds.length > 0) {
-            await db.order_items.where('order_id').anyOf(orderIds).delete();
-            await db.order_items.bulkPut(allItems.map(item => ({ 
-                ...item, 
-                snapshot_name: item.snapshot_name || item.name || 'Unknown' 
-            })));
-        }
       });
+
+      // Refresh Dashboard Orders
+      await refreshOrdersForDashboard();
       
     } catch (e: any) { 
         console.error("refreshData failed:", e); 
@@ -259,6 +455,7 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
         updated_at: now,
         version: 1,
         is_offline: true,
+        sync_status: 'pending', // Mark as pending
         note: data.note || ''
     };
 
@@ -304,7 +501,8 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
         total_amount: newTotal, 
         total: newTotal, 
         updated_at: new Date().toISOString(),
-        version: (order.version || 1) + 1
+        version: (order.version || 1) + 1,
+        sync_status: 'pending'
     };
 
     await db.transaction('rw', [db.orders, db.order_items], async () => {
@@ -330,10 +528,9 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
 
     let localUpdates = { 
         ...updates, 
-        // Keep existing user_id if not present in updates
-        // user_id: user?.id, // Should we overwrite user_id? Maybe only updated_by? For now, careful not to lose ownership
         updated_at: new Date().toISOString(),
-        version: (order.version || 1) + 1
+        version: (order.version || 1) + 1,
+        sync_status: 'pending'
     };
     
     let finalItems: any[] = [];
@@ -371,7 +568,7 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
     }
 
     // Handover Updates: send remaining top-level fields (like 'note', 'status', etc.)
-    const { items, order_items, table, time, staff, total, ...handoverUpdates } = localUpdates;
+    const { items, order_items, table, time, staff, total, sync_status, ...handoverUpdates } = localUpdates;
     
     if (Object.keys(handoverUpdates).length > 0) {
       console.log(`[updateLocalOrder] Queuing update_order for ${orderId}. Keys: ${Object.keys(handoverUpdates).join(', ')}`);
@@ -412,7 +609,8 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
       staff_name: paymentStaffName,
       staff: paymentStaffName, 
       updated_at: new Date().toISOString(),
-      version: (order.version || 1) + 1
+      version: (order.version || 1) + 1,
+      sync_status: 'pending'
     };
 
     await db.orders.update(orderId, updates);
@@ -423,7 +621,11 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
     console.log(`[CANCEL_FLOW] Start for Order ${orderId}`);
     await ensureDb();
     const id = String(orderId);
-    const updates = { status: 'Cancelled', updated_at: new Date().toISOString() };
+    const updates = { 
+        status: 'Cancelled', 
+        updated_at: new Date().toISOString(),
+        sync_status: 'pending'
+    };
     await db.orders.update(id, updates);
     console.log(`[CANCEL_FLOW] Dexie updated Order ${id} to Cancelled`);
     await addToQueue('update_order', { id, updates });
@@ -431,6 +633,33 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
   };
 
   const updateTableStatus = async (tableId: string, status: string) => {};
+
+  const saveTableLayout = async (newTables: TableData[]) => {
+    await ensureDb();
+    // 1. Update local IndexedDB
+    await db.transaction('rw', db.pos_tables, async () => {
+      // Clear old tables (optional, or just update) - clearing is safer for full layout replace
+      await db.pos_tables.clear();
+      await db.pos_tables.bulkAdd(newTables);
+    });
+
+    // 2. Queue for Sync to Server
+    // We send the full list. Server logic should upsert these. 
+    // Ideally, server should also delete tables not in this list, but upsert is safe start.
+    await addToQueue('table_layout_sync', { tables: newTables });
+    
+    console.log(`[TABLE_LAYOUT] Saved ${newTables.length} tables locally & queued for sync.`);
+  };
+
+  const deleteTable = async (tableId: string) => {
+    await ensureDb();
+    // 1. Local Dexie delete
+    await db.pos_tables.delete(tableId);
+    
+    // 2. Enqueue server delete
+    await addToQueue('table_delete', { id: tableId });
+    console.log(`[TABLE_DELETE] Table ${tableId} deleted locally and queued for sync.`);
+  };
 
   const addMenuItem = async (item: Partial<MenuItem>) => {
   await ensureDb();
@@ -493,8 +722,8 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
 
     // 3. Online Logic (Supabase + Local Merge)
     try {
-      // 3a. Flush Queue First
-      await processQueue(true).catch(e => console.warn("Queue flush warning:", e));
+      // 3a. Flush Queue First (Attempt)
+      // await processQueue(false).catch(e => console.warn("Queue flush warning:", e));
 
       // 3b. Query Supabase
       // NOTE: Using 'updated_at' for revenue reports as requested
@@ -572,13 +801,15 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
         await db.orders.update(targetOrder.id, { 
             total_amount: newTotal, 
             total: newTotal,
-            updated_at: new Date().toISOString() 
+            updated_at: new Date().toISOString(),
+            sync_status: 'pending'
         });
 
         await db.orders.update(sourceOrder.id, { 
             status: 'Cancelled', 
             note: `Merged to ${targetTableId}`,
-            updated_at: new Date().toISOString() 
+            updated_at: new Date().toISOString(),
+            sync_status: 'pending'
         });
     });
 
@@ -602,7 +833,8 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
     const updates = {
         table_id: targetTableId,
         table: (tables.find(t => String(t.id) === String(targetTableId))?.label || targetTableId),
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        sync_status: 'pending'
     };
 
     await db.orders.update(sourceOrder.id, updates);
@@ -640,14 +872,15 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
                 table: (tables.find(t => String(t.id) === String(targetTableId))?.label || targetTableId),
                 status: 'Pending',
                 total: 0, total_amount: 0,
-                staff: staffName, // Fixed: Use correct display name
-                staff_name: staffName, // Canonical
-                user_id: userId, // Fixed: Add user_id
+                staff: staffName, 
+                staff_name: staffName, 
+                user_id: userId, 
                 created_at: now, updated_at: now,
                 guests: 1,
                 is_offline: true,
                 version: 1,
-                note: sourceOrder.note || '' // Optional: Copy original note
+                sync_status: 'pending',
+                note: sourceOrder.note || '' 
             };
             await db.orders.add(newOrder);
             await addToQueue('new_order', { order: newOrder });
@@ -685,11 +918,11 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
 
         const remainingSourceItems = await db.order_items.where('order_id').equals(sourceOrderId).toArray();
         const sourceTotal = remainingSourceItems.reduce((s, i) => s + (i.price * i.quantity), 0);
-        await db.orders.update(sourceOrderId, { total: sourceTotal, total_amount: sourceTotal, updated_at: now });
+        await db.orders.update(sourceOrderId, { total: sourceTotal, total_amount: sourceTotal, updated_at: now, sync_status: 'pending' });
 
         const allTargetItems = await db.order_items.where('order_id').equals(targetOrderId!).toArray();
         const targetTotal = allTargetItems.reduce((s, i) => s + (i.price * i.quantity), 0);
-        await db.orders.update(targetOrderId!, { total: targetTotal, total_amount: targetTotal, updated_at: now });
+        await db.orders.update(targetOrderId!, { total: targetTotal, total_amount: targetTotal, updated_at: now, sync_status: 'pending' });
         
         await addToQueue('update_order_items', { order_id: sourceOrderId, items: remainingSourceItems });
         await addToQueue('update_order', { id: sourceOrderId, updates: { total_amount: sourceTotal } });
@@ -705,8 +938,12 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
   return (
     <DataContext.Provider value={{
       tables, orders, menuItems, loading, currentStaffEmail,
-      refreshData, addLocalOrder, addItemToSession, updateLocalOrder,
+      refreshData, 
+      refreshOrdersForDashboard, refreshOrdersForReports,
+      addLocalOrder, addItemToSession, updateLocalOrder,
       checkoutSession, cancelOrder, updateTableStatus,
+      saveTableLayout, // New export
+      deleteTable, // Export deleteTable
       addMenuItem, updateMenuItem, deleteMenuItem,
       getReportOrders,
       mergeOrders, moveTable, splitOrder

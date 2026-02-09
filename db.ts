@@ -1,3 +1,4 @@
+
 import Dexie from 'dexie';
 import type { Table } from 'dexie';
 import { Order, OrderItem, MenuItem } from './types';
@@ -10,7 +11,9 @@ export type QueueActionType =
   | 'menu_upsert' 
   | 'menu_update' 
   | 'menu_delete'
-  | 'audit_log';
+  | 'audit_log'
+  | 'table_layout_sync'
+  | 'table_delete';
 
 export interface OfflineQueueItem {
   id?: number;

@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { Order } from '../types';
 import { useCurrency } from '../CurrencyContext';
 import { useSettingsContext } from '../context/SettingsContext';
@@ -71,7 +71,7 @@ export const Receipt: React.FC<ReceiptProps> = ({ data }) => {
         
         {/* Header */}
         <div className="text-center mb-3">
-          <div className="text-[15px] font-bold uppercase tracking-wide mb-1 leading-tight break-words whitespace-pre-wrap">{settings.counterName || "RESBAR POS"}</div>
+          <div className="text-[15px] font-bold uppercase tracking-wide mb-1 leading-tight break-words whitespace-pre-wrap">{settings.counterName || "NEPOS"}</div>
           {settings.counterAddress && <div className="text-[10px] text-gray-700 break-words whitespace-pre-wrap">{settings.counterAddress}</div>}
           {settings.counterPhone && <div className="text-[10px] text-gray-700">Hotline: {settings.counterPhone}</div>}
         </div>
@@ -184,11 +184,10 @@ export const Receipt: React.FC<ReceiptProps> = ({ data }) => {
         {/* Footer */}
         <div className="text-center text-[10px] text-gray-600 mt-4 font-medium">
           <div className="break-words whitespace-pre-wrap">{settings.receiptNote || "Xin cảm ơn & Hẹn gặp lại!"}</div>
-          <div className="text-[8px] mt-1 opacity-60">Powered by ResBar POS</div>
+          <div className="text-[8px] mt-1 opacity-60">Powered by Nepos</div>
         </div>
 
       </div>
     </div>
   );
 };
-    

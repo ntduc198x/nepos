@@ -27,7 +27,7 @@ type DateRangeType = 'today' | 'yesterday' | 'week' | 'custom';
 export const Reports: React.FC = () => {
   const { formatPrice } = useCurrency();
   const { t } = useTheme();
-  const { menuItems, tables, getReportOrders } = useData();
+  const { menuItems, tables, getReportOrders, refreshOrdersForReports } = useData();
   const { can, guardSensitive, settings } = useSettingsContext();
   const { role, user } = useAuth();
 
@@ -45,13 +45,14 @@ export const Reports: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   // --- REFS FOR STABLE FETCHING ---
-  // Fix: Prevent infinite loop by stabilizing function references
   const canRef = useRef(can);
   const getReportOrdersRef = useRef(getReportOrders);
+  const refreshOrdersForReportsRef = useRef(refreshOrdersForReports);
   const fetchingRef = useRef(false);
 
   useEffect(() => { canRef.current = can; }, [can]);
   useEffect(() => { getReportOrdersRef.current = getReportOrders; }, [getReportOrders]);
+  useEffect(() => { refreshOrdersForReportsRef.current = refreshOrdersForReports; }, [refreshOrdersForReports]);
 
   // Stable permission check
   const canViewReport = useMemo(() => {
@@ -83,10 +84,8 @@ export const Reports: React.FC = () => {
   // --- HANDLERS ---
   const handleDatePreset = (preset: DateRangeType) => {
     setDateRange(preset);
-    // Use local time for setting input values (YYYY-MM-DD)
     const now = new Date();
     
-    // Helper to format YYYY-MM-DD in local time
     const toLocalYMD = (date: Date) => {
       const offset = date.getTimezoneOffset();
       const localDate = new Date(date.getTime() - (offset * 60 * 1000));
@@ -118,62 +117,51 @@ export const Reports: React.FC = () => {
   // --- MAIN FETCH EFFECT ---
   useEffect(() => {
     const run = async () => {
-      // 1. Pre-flight Checks
       if (!canViewReport) return;
       if (!fromDate || !toDate) return;
-      if (fetchingRef.current) return; // Prevent re-entry
+      if (fetchingRef.current) return;
 
-      // 2. Lock & Loading State
       fetchingRef.current = true;
       setIsLoading(true);
 
       try {
-        // 3. Construct Date Objects (Local -> ISO UTC)
-        // Parsing YYYY-MM-DD manually ensures we treat it as local time start/end
         const [fy, fm, fd] = fromDate.split('-').map(Number);
         const [ty, tm, td] = toDate.split('-').map(Number);
 
         const start = new Date(fy, fm - 1, fd, 0, 0, 0, 0);
         const end = new Date(ty, tm - 1, td, 23, 59, 59, 999);
 
-        // 4. Call via Ref (Stable)
+        await refreshOrdersForReportsRef.current(start.toISOString(), end.toISOString());
+
         const data = await getReportOrdersRef.current({ 
           from: start.toISOString(), 
           to: end.toISOString() 
         });
 
-        // 5. Update State
         setReportData(data);
       } catch (err) {
         console.error('[Reports] fetch failed:', err);
       } finally {
-        // 6. Cleanup & Unlock
         setIsLoading(false);
         fetchingRef.current = false;
       }
     };
 
     run();
-  }, [fromDate, toDate, canViewReport]); // Minimal dependency array
+  }, [fromDate, toDate, canViewReport]);
 
-  // --- RBAC FILTERED DATA ---
-  // This is the single source of truth for charts and stats
   const accessibleOrders = useMemo(() => {
-    // 1. Staff: Already filtered by DataContext (User ID check), but double check here for robustness
     if (role === 'staff' && user) {
         return reportData.filter(o => o.user_id === user.id || o.staff_name === user.email);
     }
     
-    // 2. Manager: Filter out Admin orders (if adminIds loaded)
     if (role === 'manager') {
         return reportData.filter(o => !o.user_id || !adminIds.has(o.user_id));
     }
 
-    // 3. Admin: See all
     return reportData;
   }, [reportData, role, user, adminIds]);
 
-  // --- AGGREGATION ---
   const stats = useMemo(() => {
     const completed = accessibleOrders.filter(o => o.status === 'Completed');
     const revenue = completed.reduce((sum, o) => sum + (o.total_amount || 0), 0);
@@ -189,7 +177,6 @@ export const Reports: React.FC = () => {
     };
   }, [accessibleOrders]);
 
-  // New Financial Summary Aggregation
   const financialSummary = useMemo(() => {
     const completed = accessibleOrders.filter(o => o.status === 'Completed');
     let grossSales = 0;
@@ -200,14 +187,13 @@ export const Reports: React.FC = () => {
     completed.forEach(o => {
         const total = o.total_amount || 0;
         const discount = o.discount_amount || 0;
-        const subtotal = total + discount; // Reconstruct gross
+        const subtotal = total + discount;
 
         grossSales += subtotal;
         totalDiscount += discount;
         netSales += total;
 
         const method = o.payment_method || 'Other';
-        // Normalize keys
         let key = 'Other';
         if (method === 'Cash') key = 'Cash';
         else if (method === 'Card') key = 'Card';
@@ -227,7 +213,6 @@ export const Reports: React.FC = () => {
     );
   }, [accessibleOrders, searchQuery, tables]);
 
-  // --- CHART DATA PREPARATION ---
   const hourlyData = useMemo(() => {
     const hours = Array(24).fill(0).map((_, i) => ({ 
       hour: i, 
@@ -238,7 +223,6 @@ export const Reports: React.FC = () => {
 
     accessibleOrders.forEach(o => {
       if (o.status !== 'Completed') return;
-      // Use updated_at as primary timestamp for revenue
       const timeStr = o.updated_at || o.created_at;
       if (!timeStr) return;
       
@@ -269,12 +253,11 @@ export const Reports: React.FC = () => {
     const sorted = Array.from(itemMap.entries())
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
-      .slice(0, 5); // Top 5
+      .slice(0, 5);
 
     return sorted;
   }, [accessibleOrders]);
 
-  // --- ACTIONS ---
   const handleCopyId = (id: string) => {
     navigator.clipboard.writeText(id);
     setCopiedId(id);
@@ -301,13 +284,8 @@ export const Reports: React.FC = () => {
         link.click();
         return "OK";
     });
-
-    if (!result.ok) {
-        // Toast handled by guardSensitive
-    }
   };
 
-  // --- RENDER HELPERS ---
   const renderKPICard = (title: string, value: string, subValue: string, icon: any, colorClass: string) => (
     <div className="p-5 rounded-2xl bg-surface border border-border flex flex-col gap-2 relative overflow-hidden group">
         <div className={`absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity ${colorClass}`}>
@@ -324,7 +302,6 @@ export const Reports: React.FC = () => {
     </div>
   );
 
-  // --- PERMISSION BLOCK ---
   if (!canViewReport) {
       return (
           <div className="flex-1 flex flex-col items-center justify-center h-full bg-background p-8 text-center animate-in fade-in">
@@ -343,8 +320,6 @@ export const Reports: React.FC = () => {
 
   return (
     <div className="flex flex-col h-full bg-background transition-colors">
-      
-      {/* HEADER */}
       <div className="h-auto lg:h-20 p-4 lg:px-8 border-b border-border flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 bg-background/95 backdrop-blur shrink-0 z-20 sticky top-0">
          <div>
             <h1 className="text-2xl font-black text-text-main flex items-center gap-2">
@@ -374,13 +349,9 @@ export const Reports: React.FC = () => {
          </div>
       </div>
 
-      {/* CONTENT AREA */}
       <div className="flex-1 overflow-hidden flex flex-col lg:flex-row">
-         
-         {/* LEFT: TABS & STATS */}
          <div className="flex-1 overflow-y-auto p-4 lg:p-8 custom-scrollbar">
             <div className="max-w-6xl mx-auto space-y-8 pb-20">
-                {/* KPI GRID */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                     {renderKPICard(t('Revenue'), maskedFormatPrice(stats.revenue), `${stats.orders} ${t('Orders')}`, DollarSign, 'text-emerald-500')}
                     {renderKPICard(t('Total Orders'), stats.orders.toString(), t('Completed'), ShoppingBag, 'text-blue-500')}
@@ -388,7 +359,6 @@ export const Reports: React.FC = () => {
                     {renderKPICard(t('Cancel Rate'), `${stats.cancelRate.toFixed(1)}%`, `${stats.cancelled} ${t('Cancelled')}`, XCircle, 'text-red-500')}
                 </div>
 
-                {/* TABS */}
                 <div className="border-b border-border flex gap-6 overflow-x-auto no-scrollbar">
                     {(['overview', 'history'] as TabView[]).map(tab => (
                         <button
@@ -399,7 +369,6 @@ export const Reports: React.FC = () => {
                             {t(tab)}
                         </button>
                     ))}
-                    {/* Restricted Tabs */}
                     {can('report.export') && (
                         <button onClick={handleExport} className="pb-3 text-sm font-bold uppercase tracking-wide border-b-2 border-transparent text-secondary hover:text-primary flex items-center gap-2 ml-auto">
                             <FileDown size={16} /> {t('Export')}
@@ -407,7 +376,6 @@ export const Reports: React.FC = () => {
                     )}
                 </div>
 
-                {/* TAB CONTENT */}
                 {isLoading ? (
                     <div className="h-64 flex items-center justify-center">
                         <Loader2 className="animate-spin text-primary" size={48} />
@@ -416,10 +384,7 @@ export const Reports: React.FC = () => {
                     <>
                         {activeTab === 'overview' && (
                             <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                
-                                {/* CHARTS SECTION */}
                                 <div className="xl:col-span-2 space-y-6">
-                                    {/* Hourly Revenue Chart */}
                                     <div className="bg-surface border border-border rounded-2xl p-6 shadow-sm">
                                         <div className="flex items-center justify-between mb-6">
                                             <h3 className="font-bold text-lg flex items-center gap-2">
@@ -469,7 +434,6 @@ export const Reports: React.FC = () => {
                                         </div>
                                     </div>
 
-                                    {/* Top Items Bar Chart */}
                                     <div className="bg-surface border border-border rounded-2xl p-6 shadow-sm">
                                         <h3 className="font-bold text-lg mb-6 flex items-center gap-2">
                                             <Utensils size={20} className="text-orange-500"/> {t('Top Selling Items')}
@@ -502,20 +466,17 @@ export const Reports: React.FC = () => {
                                     </div>
                                 </div>
 
-                                {/* Financial Summary Card (Replaces Recent Activity) */}
                                 <div className="bg-surface border border-border rounded-2xl p-6 shadow-sm h-fit">
                                     <h3 className="font-bold text-lg mb-6 flex items-center gap-2">
                                         <Wallet size={20} className="text-primary"/> {t('Financial Summary')}
                                     </h3>
                                     
                                     <div className="space-y-6">
-                                        {/* Main Total */}
                                         <div className="bg-background border border-border rounded-xl p-4 text-center">
                                             <p className="text-xs font-bold text-secondary uppercase tracking-widest mb-1">{t('Net Sales')}</p>
                                             <p className="text-3xl font-black text-primary">{maskedFormatPrice(financialSummary.netSales)}</p>
                                         </div>
 
-                                        {/* Breakdown */}
                                         <div className="space-y-3">
                                             <div className="flex justify-between items-center text-sm">
                                                 <span className="text-secondary">{t('Gross Sales')}</span>
@@ -531,7 +492,6 @@ export const Reports: React.FC = () => {
                                             </div>
                                         </div>
 
-                                        {/* Payment Methods Breakdown */}
                                         <div>
                                             <p className="text-xs font-bold text-secondary uppercase tracking-widest mb-3">{t('Payment Methods')}</p>
                                             <div className="space-y-3">
@@ -558,7 +518,6 @@ export const Reports: React.FC = () => {
                                                         </div>
                                                     );
                                                 })}
-                                                {/* Others */}
                                                 {(financialSummary.paymentMethods['Other'] || 0) > 0 && (
                                                     <div className="space-y-1">
                                                         <div className="flex justify-between items-center text-xs">
@@ -652,7 +611,6 @@ export const Reports: React.FC = () => {
             </div>
          </div>
 
-         {/* RIGHT: DETAIL DRAWER */}
          {selectedOrderId && (
              <div className="w-full lg:w-96 bg-surface border-l border-border h-full shrink-0 flex flex-col shadow-2xl animate-in slide-in-from-right duration-300 absolute lg:relative inset-0 z-30">
                  {(() => {
@@ -677,7 +635,6 @@ export const Reports: React.FC = () => {
                             </div>
 
                             <div className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-6">
-                                {/* Items List */}
                                 <div className="space-y-4">
                                     <h4 className="text-xs font-black text-secondary uppercase tracking-widest">{t('Items Detail')}</h4>
                                     {enrichedItems.map((item: any, idx: number) => (
@@ -694,7 +651,6 @@ export const Reports: React.FC = () => {
                                     ))}
                                 </div>
 
-                                {/* Payment Info */}
                                 <div className="p-4 bg-background border border-border rounded-xl space-y-3">
                                     <div className="flex justify-between items-center text-sm">
                                         <span className="text-secondary">{t('Subtotal')}</span>
@@ -718,7 +674,6 @@ export const Reports: React.FC = () => {
                                     </div>
                                 </div>
 
-                                {/* Staff Info */}
                                 <div className="flex items-center gap-3 p-3 bg-surface border border-border rounded-xl">
                                     <div className="size-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
                                         {(order.staff_name || 'POS').substring(0,2).toUpperCase()}
@@ -732,7 +687,7 @@ export const Reports: React.FC = () => {
 
                             <div className="p-4 border-t border-border bg-background shrink-0">
                                 <button 
-                                    onClick={() => guardSensitive('reprint_receipt', () => printOrderReceipt({ ...order, items: enrichedItems }))}
+                                    onClick={() => guardSensitive('reprint_receipt', () => printOrderReceipt({ ...order, items: enrichedItems }, settings))}
                                     className="w-full py-3 bg-surface border border-border hover:bg-border text-text-main rounded-xl font-bold flex items-center justify-center gap-2 transition-all"
                                 >
                                     <Printer size={18} /> {t('Reprint Receipt')}

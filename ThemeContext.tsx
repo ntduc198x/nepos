@@ -149,7 +149,7 @@ const translations: Record<Language, Record<string, string>> = {
     'From Date': 'From Date',
     'To Date': 'To Date',
     'Total Orders': 'Total Orders',
-    'Search ID or Table...': 'Search ID or Table...',
+    // Duplicate key removed: 'Search ID or Table...'
     'All Status': 'All Status',
     'All Payment': 'All Payment',
     'No history found': 'No history found',
@@ -191,12 +191,21 @@ const translations: Record<Language, Record<string, string>> = {
     // Dashboard & Operations
     'Dashboard Overview': 'Dashboard Overview',
     'Revenue Today': 'Revenue Today',
-    'Active Orders': 'Active Orders',
-    'Avg Bill': 'Avg Bill',
+    'Doanh thu (Của bạn)': 'Revenue (Yours)',
+    'Doanh thu hôm nay': 'Revenue Today',
+    'Đang phục vụ': 'Serving',
+    'Đã xong (Của bạn)': 'Completed (Yours)',
+    'Đã hoàn thành': 'Completed',
+    'TB Đơn': 'Avg Bill',
     'Cooking': 'Cooking',
     'Ready': 'Ready',
     'Pay': 'Pay',
     'Takeaway': 'Takeaway',
+    'No orders found': 'No orders found',
+    'Select an Order': 'Select an Order',
+    'Personal View': 'Personal View',
+    'Global View': 'Global View',
+    'Search ID or Table...': 'Search ID or Table...',
 
     // Menu
     'Manage items': 'Manage items and manual stock',
@@ -247,6 +256,7 @@ const translations: Record<Language, Record<string, string>> = {
     'Select an occupied table to merge with': 'Select an occupied table to merge with',
     'No empty tables available': 'No empty tables available',
     'No other occupied tables': 'No other occupied tables',
+    'Add Table': 'Add Table',
 
     // Inventory
     'Inventory Management': 'Inventory Management',
@@ -274,6 +284,19 @@ const translations: Record<Language, Record<string, string>> = {
     'units': 'units',
     'Manual Stock': 'Manual Stock',
     'No recipe defined': 'No recipe defined',
+    // Inventory Categories & Statuses
+    'Pantry': 'Pantry',
+    'Dairy': 'Dairy',
+    'Produce': 'Produce',
+    'Packaging': 'Packaging',
+    'Meat': 'Meat',
+    'Seafood': 'Seafood',
+    'Beverages': 'Beverages',
+    'Critical': 'Critical',
+    'Low': 'Low',
+    'Good': 'Good',
+    'packs': 'packs',
+    'pcs': 'pcs',
 
     // Payment Modal
     'Confirm Payment': 'Confirm Payment',
@@ -289,37 +312,9 @@ const translations: Record<Language, Record<string, string>> = {
     'Memo': 'Memo',
     'Bank settings required': 'Bank settings required in Settings',
 
-    // --- SETTINGS.TSX TEXT (VI Source -> EN Target: Translated) ---
-    // Section: Permissions & Roles
-    'Bán hàng & Vận hành': 'Sales & Operations',
-    'Truy cập màn hình POS': 'Access POS Screen',
-    'Quản lý bàn (Gộp/Tách/Chuyển)': 'Table Management (Merge/Split/Move)',
-    'Mở ca làm việc': 'Open Shift',
-    'Chốt ca & Đếm tiền': 'Close Shift & Count Cash',
-    'Thao tác nhạy cảm': 'Sensitive Actions',
-    'Giảm giá đơn hàng': 'Discount Order',
-    'Huỷ món đã gọi (Sau khi bếp làm)': 'Void Ordered Items (After Kitchen)',
-    'Hoàn tiền / Mở két tiền': 'Refund / Open Cash Drawer',
-    'Xoá hoàn toàn đơn hàng': 'Delete Order Completely',
-    'Quản lý & Cấu hình': 'Management & Configuration',
-    'Xem báo cáo doanh thu': 'View Revenue Reports',
-    'Chỉnh sửa thực đơn & Giá': 'Edit Menu & Prices',
-    'Quản lý nhân viên': 'Manage Staff',
-    'Cấu hình hệ thống': 'System Configuration',
-    'Owner': 'Owner',
-    'Chủ quán - Toàn quyền truy cập mọi chức năng hệ thống.': 'Owner - Full access to all system functions.',
-    'Shift Manager': 'Shift Manager',
-    'Quản lý ca - Vận hành, báo cáo và xử lý sự cố.': 'Shift Manager - Operations, reports, and troubleshooting.',
-    'Cashier': 'Cashier',
-    'Thu ngân - Chuyên trách thanh toán và két tiền.': 'Cashier - Dedicated to payments and cash drawer.',
-    'Server': 'Server',
-    'Phục vụ - Chỉ order và quản lý bàn cơ bản.': 'Server - Order taking and basic table management only.',
-    'Kitchen/Bar': 'Kitchen/Bar',
-    'Bếp/Bar - Không truy cập POS, chỉ xem màn hình hiển thị (KDS).': 'Kitchen/Bar - No POS access, KDS view only.',
-    'Accountant': 'Accountant',
-    'Kế toán - Chỉ xem báo cáo để đối soát.': 'Accountant - View reports for reconciliation only.',
-
-    // Section: Status & UI Elements
+    // --- SETTINGS TRANSLATIONS ---
+    
+    // Status & Actions
     'Vận hành: Mượt': 'Operations: Smooth',
     'Cần chú ý': 'Needs Attention',
     'Lỗi': 'Error',
@@ -349,12 +344,28 @@ const translations: Record<Language, Record<string, string>> = {
     'Đăng xuất?': 'Logout?',
     'Bạn sẽ đăng xuất khỏi phiên làm việc hiện tại.': 'You will be logged out of the current session.',
     'Đăng xuất': 'Logout',
-
-    // Section: Config Keys & Descriptions
+    'Administrator access required': 'Administrator access required',
+    'Administrator access required to manage users': 'Administrator access required to manage users',
+    'Quản lý User & Mã PIN': 'User & PIN Management',
+    'Set PIN for': 'Set PIN for',
+    'Save PIN': 'Save PIN',
+    'PIN updated successfully': 'PIN updated successfully',
+    
+    // Config Sections & Keys
     'Cài đặt hệ thống': 'System Settings',
     'Quản lý toàn bộ cấu hình quán': 'Manage entire store configuration',
     'Quán & Bán hàng': 'Store & Sales',
     'Thiết lập luồng order, thanh toán và quản lý bàn': 'Setup ordering flow, payments and table management',
+    'Mô hình vận hành (Preset)': 'Operating Model (Preset)',
+    'Áp dụng nhanh mô hình': 'Apply Preset Model',
+    'Thông tin quầy': 'Counter Info',
+    'Tên quầy / cửa hàng': 'Counter / Store Name',
+    'Địa chỉ': 'Address',
+    'Số điện thoại': 'Phone Number',
+    'Ghi chú in hóa đơn': 'Receipt Footer Note',
+    'Hiển thị ở cuối hóa đơn': 'Displays at bottom of receipt',
+    'Cấu hình Ngân hàng (VietQR)': 'Bank Configuration (VietQR)',
+    'Thiết lập VietQR': 'Setup VietQR',
     'Luồng bán hàng': 'Sales Flow',
     'Tạo đơn nhanh': 'Quick Order',
     'Bỏ qua bước chọn bàn, vào thẳng menu (giảm bước)': 'Skip table selection, go straight to menu',
@@ -386,7 +397,7 @@ const translations: Record<Language, Record<string, string>> = {
     'In & Hóa đơn': 'Printing & Invoice',
     'Máy in, nội dung hóa đơn và thao tác in nhanh': 'Printers, receipt content and quick print actions',
     'Máy in': 'Printer',
-    'Tên máy in': 'Type',
+    'Tên máy in': 'Printer Name',
     'Kiểm tra kết nối': 'Check Connection',
     'Gửi tín hiệu đến máy in': 'Send signal to printer',
     'Khổ giấy': 'Paper Size',
@@ -402,6 +413,9 @@ const translations: Record<Language, Record<string, string>> = {
     'Khách quét mã chuyển khoản nhanh': 'Scan code for quick transfer',
     'Hiện thông tin quán': 'Show Store Info',
     'Tên/địa chỉ/SĐT trên hóa đơn': 'Name/Address/Phone on receipt',
+    'Tên Wifi': 'Wifi Name',
+    'Mật khẩu Wifi': 'Wifi Password',
+    'In ở cuối hóa đơn cho khách tại bàn': 'Print at bottom for dine-in guests',
     'Cỡ chữ hóa đơn': 'Receipt Font Size',
     'Khuyên dùng ‘Vừa’ cho 80mm': 'Recommended "Medium" for 80mm',
     'Nhỏ': 'Small',
@@ -420,6 +434,9 @@ const translations: Record<Language, Record<string, string>> = {
     'Cho phép huỷ món': 'Allow Void Item',
     'Rủi ro: Nhân viên có thể huỷ đơn gian lận sau khi thu tiền.': 'Risk: Staff may fraudulently void orders after collecting cash.',
     'Cho phép nhân viên tự ý huỷ món có thể dẫn đến thất thoát doanh thu. Bạn có chắc chắn muốn bật?': 'Allowing staff to void items may lead to revenue loss. Are you sure?',
+    'Cho phép xóa hoàn toàn đơn hàng': 'Allow Delete Order',
+    'Rủi ro: Mất dữ liệu đơn hàng.': 'Risk: Loss of order data.',
+    'Cho phép nhân viên xóa hoàn toàn đơn hàng (Cancel Order). Bạn có chắc chắn?': 'Allows staff to completely delete orders. Are you sure?',
     'Cho phép giảm giá': 'Allow Discount',
     'Rủi ro: Áp dụng giảm giá sai quy định.': 'Risk: Applying unauthorized discounts.',
     'Việc cho phép nhân viên tự giảm giá có thể bị lạm dụng. Bạn có chắc chắn?': 'Allowing staff to apply discounts may be abused. Are you sure?',
@@ -434,11 +451,23 @@ const translations: Record<Language, Record<string, string>> = {
     'Yêu cầu PIN khi giảm giá': 'Require PIN to Discount',
     'Ngăn chặn giảm giá tuỳ tiện': 'Prevent unauthorized discounts',
     'Dùng để duyệt các thao tác nhạy cảm': 'Used to approve sensitive actions',
+    'Cấu hình Manager (Manager Config)': 'Manager Configuration',
+    // Duplicates removed from here
     'Giao diện & Trải nghiệm': 'Interface & Experience',
     'Tùy chỉnh tốc độ thao tác, hiển thị và phím tắt': 'Customize speed, display and shortcuts',
-    'Ngôn ngữ & Hiển thị chữ': 'Language & Text',
+    'Giao diện & Ngôn ngữ': 'UI & Language',
     'Ngôn ngữ': 'Language',
     'Áp dụng cho toàn bộ hệ thống, không cần khởi động lại': 'Applies to entire system, no restart needed',
+    'Chế độ hiển thị': 'Theme Mode',
+    'Giao diện Sáng / Tối': 'Light / Dark Mode',
+    'Hệ thống (System)': 'System',
+    'Tối (Dark)': 'Dark',
+    'Sáng (Light)': 'Light',
+    'Tự động theo khung giờ (06:00–18:00 sáng, 18:00–06:00 tối)': 'Auto Schedule (06:00–18:00 Day, 18:00–06:00 Night)',
+    'Tự động chuyển đổi Light/Dark': 'Auto switch Light/Dark',
+    'Chỉ áp dụng khi chọn System': 'Only applies when System is selected',
+    'Giờ bắt đầu Sáng': 'Day Start Time',
+    'Giờ bắt đầu Tối': 'Night Start Time',
     'Tốc độ thao tác': 'Operation Speed',
     'Chạm 1 lần để thêm món': 'Single Tap to Add Item',
     'Mặc định trên tablet giúp order nhanh hơn': 'Default on tablet for faster ordering',
@@ -503,7 +532,10 @@ const translations: Record<Language, Record<string, string>> = {
     'Tự đẩy dữ liệu lên server khi có mạng': 'Auto push data to server when online',
     'Đồng bộ ngay': 'Sync Now',
     'Đẩy thủ công các đơn Offline lên hệ thống': 'Manually push Offline orders to system',
+    'Trạng thái mạng': 'Network Status',
+    'Đơn chờ đồng bộ': 'Pending Sync Orders',
     'Lần đồng bộ cuối': 'Last Sync Time',
+    'Lỗi đồng bộ': 'Sync Error',
     'Sao lưu': 'Backup',
     'Xuất dữ liệu': 'Export Data',
     'Tải về file dự phòng (JSON)': 'Download backup file (JSON)',
@@ -580,6 +612,11 @@ const translations: Record<Language, Record<string, string>> = {
     'POS Locked': 'POS Locked',
     'Enter PIN to continue': 'Enter PIN to continue',
     'Unlock': 'Unlock',
+    'Invalid PIN': 'Invalid PIN',
+    
+    // Renamed App Keys
+    'Nepos System': 'Hệ Thống Quản Lý NEPOS',
+    'Welcome to Nepos': 'Chào mừng đến với Nepos',
   },
 
   vi: {
@@ -663,8 +700,14 @@ const translations: Record<Language, Record<string, string>> = {
     // Dashboard & Operations
     'Dashboard Overview': 'Tổng quan kinh doanh',
     'Revenue Today': 'Doanh thu hôm nay',
+    'Doanh thu (Của bạn)': 'Doanh thu (Của bạn)',
+    'Doanh thu hôm nay': 'Doanh thu hôm nay',
+    'Đang phục vụ': 'Đang phục vụ',
+    'Đã xong (Của bạn)': 'Đã xong (Của bạn)',
+    'Đã hoàn thành': 'Đã hoàn thành',
     'Active Orders': 'Đơn đang phục vụ',
     'Avg Bill': 'TB đơn hàng',
+    'TB Đơn': 'TB Đơn',
     'Pending': 'Chờ xử lý',
     'Cooking': 'Đang chế biến',
     'Ready': 'Sẵn sàng',
@@ -672,6 +715,10 @@ const translations: Record<Language, Record<string, string>> = {
     'Cancelled': 'Đã hủy',
     'Pay': 'Thanh toán',
     'Takeaway': 'Mang về',
+    'No orders found': 'Chưa có đơn hàng nào',
+    'Select an Order': 'Chọn một đơn hàng',
+    'Personal View': 'Cá nhân',
+    'Global View': 'Toàn cục',
 
     // Menu
     'Manage items': 'Quản lý món và kho thủ công',
@@ -697,6 +744,8 @@ const translations: Record<Language, Record<string, string>> = {
     'Draft': 'Giỏ tạm',
     'Selected': 'Đã chọn',
     'Batch Add': 'Thêm món',
+    'Manage': 'Quản lý',
+    'Exit': 'Thoát',
 
     // FloorPlan
     'Main Hall': 'Sảnh chính',
@@ -726,6 +775,11 @@ const translations: Record<Language, Record<string, string>> = {
     'Select an occupied table to merge with': 'Chọn bàn đang dùng để gộp vào',
     'No empty tables available': 'Không có bàn trống',
     'No other occupied tables': 'Không có bàn nào để gộp',
+    'Failed to Save Order': 'Lỗi khi lưu đơn hàng',
+    'Table Opened Successfully': 'Đã mở bàn mới thành công',
+    'Open Table': 'Mở bàn mới',
+    'Select Item to Add': 'Chọn món để thêm',
+    'Add Table': 'Thêm bàn',
 
     // Inventory
     'Inventory Management': 'Quản lý kho hàng',
@@ -757,6 +811,19 @@ const translations: Record<Language, Record<string, string>> = {
     'units': 'đơn vị',
     'Manual Stock': 'Kho thủ công',
     'No recipe defined': 'Chưa có công thức',
+    // Inventory Categories & Statuses
+    'Pantry': 'Đồ khô',
+    'Dairy': 'Sữa & Chế phẩm',
+    'Produce': 'Rau củ',
+    'Packaging': 'Bao bì',
+    'Meat': 'Thịt',
+    'Seafood': 'Hải sản',
+    'Beverages': 'Đồ uống',
+    'Critical': 'Hết hàng',
+    'Low': 'Sắp hết',
+    'Good': 'Tốt',
+    'packs': 'gói',
+    'pcs': 'cái',
 
     // Payment Modal
     'Confirm Payment': 'Xác nhận thanh toán',
@@ -832,6 +899,12 @@ const translations: Record<Language, Record<string, string>> = {
     'Đăng xuất?': 'Đăng xuất?',
     'Bạn sẽ đăng xuất khỏi phiên làm việc hiện tại.': 'Bạn sẽ đăng xuất khỏi phiên làm việc hiện tại.',
     'Đăng xuất': 'Đăng xuất',
+    'Administrator access required': 'Cần quyền Quản trị viên',
+    'Administrator access required to manage users': 'Cần quyền Quản trị viên để quản lý user',
+    'Quản lý User & Mã PIN': 'Quản lý User & Mã PIN',
+    'Set PIN for': 'Đặt mã PIN cho',
+    'Save PIN': 'Lưu mã PIN',
+    'PIN updated successfully': 'Cập nhật PIN thành công',
 
     // Section: Config Keys & Descriptions
     'Cài đặt hệ thống': 'Cài đặt hệ thống',
@@ -885,6 +958,9 @@ const translations: Record<Language, Record<string, string>> = {
     'Khách quét mã chuyển khoản nhanh': 'Khách quét mã chuyển khoản nhanh',
     'Hiện thông tin quán': 'Hiện thông tin quán',
     'Tên/địa chỉ/SĐT trên hóa đơn': 'Tên/địa chỉ/SĐT trên hóa đơn',
+    'Tên Wifi': 'Tên Wifi',
+    'Mật khẩu Wifi': 'Mật khẩu Wifi',
+    'In ở cuối hóa đơn cho khách tại bàn': 'In ở cuối hóa đơn cho khách tại bàn',
     'Cỡ chữ hóa đơn': 'Cỡ chữ hóa đơn',
     'Khuyên dùng ‘Vừa’ cho 80mm': 'Khuyên dùng ‘Vừa’ cho 80mm',
     'Nhỏ': 'Nhỏ',
@@ -903,6 +979,9 @@ const translations: Record<Language, Record<string, string>> = {
     'Cho phép huỷ món': 'Cho phép huỷ món',
     'Rủi ro: Nhân viên có thể huỷ đơn gian lận sau khi thu tiền.': 'Rủi ro: Nhân viên có thể huỷ đơn gian lận sau khi thu tiền.',
     'Cho phép nhân viên tự ý huỷ món có thể dẫn đến thất thoát doanh thu. Bạn có chắc chắn muốn bật?': 'Cho phép nhân viên tự ý huỷ món có thể dẫn đến thất thoát doanh thu. Bạn có chắc chắn muốn bật?',
+    'Cho phép xóa hoàn toàn đơn hàng': 'Cho phép xóa hoàn toàn đơn hàng',
+    'Rủi ro: Mất dữ liệu đơn hàng.': 'Rủi ro: Mất dữ liệu đơn hàng.',
+    'Cho phép nhân viên xóa hoàn toàn đơn hàng (Cancel Order). Bạn có chắc chắn?': 'Cho phép nhân viên xóa hoàn toàn đơn hàng (Cancel Order). Bạn có chắc chắn?',
     'Cho phép giảm giá': 'Cho phép giảm giá',
     'Rủi ro: Áp dụng giảm giá sai quy định.': 'Rủi ro: Áp dụng giảm giá sai quy định.',
     'Việc cho phép nhân viên tự giảm giá có thể bị lạm dụng. Bạn có chắc chắn?': 'Việc cho phép nhân viên tự giảm giá có thể bị lạm dụng. Bạn có chắc chắn?',
@@ -917,11 +996,23 @@ const translations: Record<Language, Record<string, string>> = {
     'Yêu cầu PIN khi giảm giá': 'Yêu cầu PIN khi giảm giá',
     'Ngăn chặn giảm giá tuỳ tiện': 'Ngăn chặn giảm giá tuỳ tiện',
     'Dùng để duyệt các thao tác nhạy cảm': 'Dùng để duyệt các thao tác nhạy cảm',
+    'Cấu hình Manager (Manager Config)': 'Cấu hình Manager (Manager Config)',
+    // Duplicates removed from here
     'Giao diện & Trải nghiệm': 'Giao diện & Trải nghiệm',
     'Tùy chỉnh tốc độ thao tác, hiển thị và phím tắt': 'Tùy chỉnh tốc độ thao tác, hiển thị và phím tắt',
-    'Ngôn ngữ & Hiển thị chữ': 'Ngôn ngữ & Hiển thị chữ',
+    'Giao diện & Ngôn ngữ': 'Giao diện & Ngôn ngữ',
     'Ngôn ngữ': 'Ngôn ngữ',
     'Áp dụng cho toàn bộ hệ thống, không cần khởi động lại': 'Áp dụng cho toàn bộ hệ thống, không cần khởi động lại',
+    'Chế độ hiển thị': 'Chế độ hiển thị',
+    'Giao diện Sáng / Tối': 'Giao diện Sáng / Tối',
+    'Hệ thống (System)': 'Hệ thống (System)',
+    'Tối (Dark)': 'Tối (Dark)',
+    'Sáng (Light)': 'Sáng (Light)',
+    'Tự động theo khung giờ (06:00–18:00 sáng, 18:00–06:00 tối)': 'Tự động theo khung giờ (06:00–18:00 sáng, 18:00–06:00 tối)',
+    'Tự động chuyển đổi Light/Dark': 'Tự động chuyển đổi Light/Dark',
+    'Chỉ áp dụng khi chọn System': 'Chỉ áp dụng khi chọn System',
+    'Giờ bắt đầu Sáng': 'Giờ bắt đầu Sáng',
+    'Giờ bắt đầu Tối': 'Giờ bắt đầu Tối',
     'Tốc độ thao tác': 'Tốc độ thao tác',
     'Chạm 1 lần để thêm món': 'Chạm 1 lần để thêm món',
     'Mặc định trên tablet giúp order nhanh hơn': 'Mặc định trên tablet giúp order nhanh hơn',
@@ -986,7 +1077,10 @@ const translations: Record<Language, Record<string, string>> = {
     'Tự đẩy dữ liệu lên server khi có mạng': 'Tự đẩy dữ liệu lên server khi có mạng',
     'Đồng bộ ngay': 'Đồng bộ ngay',
     'Đẩy thủ công các đơn Offline lên hệ thống': 'Đẩy thủ công các đơn Offline lên hệ thống',
+    'Trạng thái mạng': 'Trạng thái mạng',
+    'Đơn chờ đồng bộ': 'Đơn chờ đồng bộ',
     'Lần đồng bộ cuối': 'Lần đồng bộ cuối',
+    'Lỗi đồng bộ': 'Lỗi đồng bộ',
     'Sao lưu': 'Sao lưu',
     'Xuất dữ liệu': 'Xuất dữ liệu',
     'Tải về file dự phòng (JSON)': 'Tải về file dự phòng (JSON)',
@@ -1001,12 +1095,26 @@ const translations: Record<Language, Record<string, string>> = {
     'Đạt': 'Đạt',
     'Cảnh báo': 'Cảnh báo',
     'Thất bại': 'Thất bại',
-    'Bank (VietQR)': 'Ngân hàng (VietQR)',
+    'Bank (VietQR)': 'Bank (VietQR)',
     'Ngân hàng': 'Ngân hàng',
     'Số tài khoản': 'Số tài khoản',
     'Tên chủ tài khoản': 'Tên chủ tài khoản',
     'Chọn ngân hàng': 'Chọn ngân hàng',
     'Lưu cấu hình ngân hàng': 'Lưu cấu hình ngân hàng',
+    'LoginDescription': 'Một POS toàn diện dành cho nhà hàng, quán cà phê, quán bar bao gồm bảng điều khiển, quản lý thực đơn, sơ đồ bàn, theo dõi đơn hàng và kho. Ứng dụng miễn phí xây dựng bởi Đức Ngô',
+    'Register text': 'Đăng ký để bắt đầu quản lý nhà hàng.',
+    'Login text': 'Vui lòng nhập thông tin để đăng nhập.',
+    'Full Name': 'Họ tên',
+    'Email Address': 'Email',
+    'Password': 'Mật khẩu',
+    'Confirm Password': 'Xác nhận mật khẩu',
+    'Remember me': 'Ghi nhớ đăng nhập',
+    'Forgot password?': 'Quên mật khẩu?',
+    'Create Account': 'Tạo tài khoản',
+    'Already have an account?': 'Đã có tài khoản?',
+    'Don\'t have an account?': 'Chưa có tài khoản?',
+    'Sign In': 'Đăng nhập',
+    'Create an Account': 'Tạo tài khoản',
 
     // Panels & Drawers
     'Phím tắt hệ thống': 'Phím tắt hệ thống',
@@ -1029,130 +1137,115 @@ const translations: Record<Language, Record<string, string>> = {
     'quyền hạn': 'quyền hạn',
     'Chi tiết': 'Chi tiết',
     'Tắt': 'Tắt',
-    'Thêm vai trò mới (Coming Soon)': 'Thêm vai trò mới (Coming Soon)',
+    'Thêm vai trò mới (Coming Soon)': 'Thêm vai trò mới (Sắp ra mắt)',
     'Dành cho Chủ quán (Owner Mode)': 'Dành cho Chủ quán (Owner Mode)',
     'Hệ thống Online': 'Hệ thống Online',
     'Đang Offline': 'Đang Offline',
     'Kết nối ổn định': 'Kết nối ổn định',
     'Dữ liệu sẽ được lưu cục bộ': 'Dữ liệu sẽ được lưu cục bộ',
 
-    // Login
-    'ResBar POS System': 'Hệ thống Quản lý ResBar POS',
-    'LoginDescription': `Tối ưu hóa quy trình vận hành nhà hàng với giải pháp quản lý toàn diện. Theo dõi đơn hàng, kiểm soát kho và phân tích hiệu suất kinh doanh theo thời gian thực. Ứng dụng miễn phí được xây dựng và duy trì bởi Duc Ngo.`,
-    'Sign In': 'Đăng nhập',
-    'Create an Account': 'Tạo tài khoản',
-    'Welcome to ResBar Pos': 'Chào mừng đến với ResBar POS',
-    'Register text': 'Đăng ký để bắt đầu quản lý nhà hàng.',
-    'Login text': 'Vui lòng nhập thông tin để đăng nhập.',
-    'Full Name': 'Họ tên',
-    'Email Address': 'Email',
-    'Password': 'Mật khẩu',
-    'Confirm Password': 'Xác nhận mật khẩu',
-    'Remember me': 'Ghi nhớ đăng nhập',
-    'Forgot password?': 'Quên mật khẩu?',
-    'Create Account': 'Tạo tài khoản',
-    'Already have an account?': 'Đã có tài khoản?',
-    'Don\'t have an account?': 'Chưa có tài khoản?',
-    
-    // New POS Actions
-    'Lock POS': 'Khóa màn hình',
-    'Switch User': 'Đổi nhân viên',
+    // Staff Roles & Permissions
+    'Roles, Sensitive Actions and Security': 'Vai trò, Thao tác nhạy cảm và Bảo mật',
+    'Phân quyền, thao tác nhạy cảm và bảo mật': 'Phân quyền, thao tác nhạy cảm và bảo mật',
+    'Quick Roles (Presets)': 'Vai trò nhanh (Presets)',
+    'Chủ quán': 'Chủ quán',
+    'Toàn quyền truy cập và chỉnh sửa hệ thống.': 'Toàn quyền truy cập và chỉnh sửa hệ thống.',
+    'Thu ngân': 'Thu ngân',
+    'Chuyên trách thanh toán, in hóa đơn, mở két.': 'Chuyên trách thanh toán, in hóa đơn, mở két.',
+    'Phục vụ': 'Phục vụ',
+    'Chỉ được tạo đơn, thêm món, gửi bếp.': 'Chỉ được tạo đơn, thêm món, gửi bếp.',
+    'FULL ACCESS': 'TOÀN QUYỀN',
+    'PAYMENT': 'THANH TOÁN',
+    'In ấn': 'IN ẤN',
+    'Mở két': 'MỞ KÉT',
+    'ORDER': 'ORDER',
+    'Gửi bếp': 'GỬI BẾP',
+    'Customize Detailed Permissions': 'Tuỳ chỉnh quyền chi tiết',
 
+    // New POS Actions
+    'Lock POS': 'Khóa POS',
+    'Switch User': 'Đổi User',
+    
     // Lock Screen
     'POS Locked': 'POS Đã Khóa',
-    'Enter PIN to continue': 'Nhập mã PIN để tiếp tục',
+    'Enter PIN to continue': 'Nhập PIN để tiếp tục',
     'Unlock': 'Mở khóa',
     'Invalid PIN': 'Sai mã PIN',
+    
+    // Renamed App Keys
+    'Nepos System': 'Hệ Thống Quản Lý NEPOS',
+    'Welcome to Nepos': 'Chào mừng đến với Nepos',
   }
 };
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [theme, setTheme] = useState<Theme>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('theme');
-      const activeTheme = (saved === 'light' || saved === 'dark') ? saved : 'dark';
-      if (activeTheme === 'dark') document.documentElement.classList.add('dark');
-      else document.documentElement.classList.remove('dark');
-      return activeTheme;
-    }
-    return 'dark';
+  const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'system'>('system');
+  const [effectiveTheme, setEffectiveTheme] = useState<Theme>('dark');
+  const [language, setLanguage] = useState<Language>('vi');
+  const [brightness, setBrightness] = useState(100);
+  const [themeConfig, setThemeConfig] = useState<ThemeConfig>({
+    mode: 'system',
+    scheduleEnabled: false,
+    dayStart: '06:00',
+    nightStart: '18:00'
   });
 
-  const [language, setLanguage] = useState<Language>(() => {
-    if (typeof window !== 'undefined') {
-      return (localStorage.getItem('language') as Language) || 'vi';
-    }
-    return 'vi';
-  });
-
-  const [brightness, setBrightness] = useState<number>(100);
-
   useEffect(() => {
-    localStorage.setItem('theme', theme);
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [theme]);
-
-  useEffect(() => {
-    localStorage.setItem('language', language);
-  }, [language]);
-
-  const t = (key: string) => {
-    return translations[language][key] || key;
-  };
-
-  const applyThemeFromConfig = useCallback((config: ThemeConfig) => {
-    let targetTheme: Theme = 'dark'; // Default fallback
-
-    if (config.mode === 'system') {
-      if (config.scheduleEnabled) {
-        // Schedule Logic
-        const now = new Date();
-        const currentMinutes = now.getHours() * 60 + now.getMinutes();
-
-        const [dH, dM] = (config.dayStart || '06:00').split(':').map(Number);
-        const dayStartMins = dH * 60 + dM;
-
-        const [nH, nM] = (config.nightStart || '18:00').split(':').map(Number);
-        const nightStartMins = nH * 60 + nM;
-
-        // Check if current time is within day window
-        if (currentMinutes >= dayStartMins && currentMinutes < nightStartMins) {
-          targetTheme = 'light';
-        } else {
-          targetTheme = 'dark';
-        }
-      } else {
-        // Pure System Preference
-        targetTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-      }
-    } else {
-      // Manual Mode
-      targetTheme = config.mode;
-    }
-
-    setTheme(targetTheme);
+    // Load from local storage if available
+    const savedLang = localStorage.getItem('app_language') as Language;
+    if (savedLang) setLanguage(savedLang);
   }, []);
 
-  const setThemeConfig = useCallback((config: ThemeConfig) => {
-    applyThemeFromConfig(config);
-  }, [applyThemeFromConfig]);
+  useEffect(() => {
+    localStorage.setItem('app_language', language);
+  }, [language]);
+
+  const calculateTheme = useCallback(() => {
+    if (themeConfig.mode === 'system') {
+        if (themeConfig.scheduleEnabled) {
+            const now = new Date();
+            const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+            if (timeStr >= themeConfig.dayStart && timeStr < themeConfig.nightStart) {
+                return 'light';
+            } else {
+                return 'dark';
+            }
+        } else {
+            return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+    }
+    return themeConfig.mode;
+  }, [themeConfig]);
+
+  useEffect(() => {
+    const t = calculateTheme();
+    setEffectiveTheme(t);
+    const root = window.document.documentElement;
+    root.classList.remove('light', 'dark');
+    root.classList.add(t);
+  }, [calculateTheme]);
+
+  const setTheme = (t: Theme) => {
+      // Manual override sets mode to specific
+      setThemeConfig(prev => ({ ...prev, mode: t }));
+  };
+
+  const t = useCallback((key: string) => {
+    return translations[language][key] || key;
+  }, [language]);
 
   return (
     <ThemeContext.Provider value={{
-      theme,
+      theme: effectiveTheme,
       setTheme,
       language,
       setLanguage,
       brightness,
       setBrightness,
       t,
-      setThemeConfig // Exposed here
+      setThemeConfig
     }}>
       {children}
     </ThemeContext.Provider>
@@ -1161,6 +1254,8 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
 export const useTheme = () => {
   const context = useContext(ThemeContext);
-  if (!context) throw new Error('useTheme must be used within ThemeProvider');
+  if (!context) {
+    throw new Error('useTheme must be used within a ThemeProvider');
+  }
   return context;
 };

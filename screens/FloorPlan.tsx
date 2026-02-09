@@ -12,6 +12,7 @@ import { TableData, MenuItem, OrderItem } from '../types';
 import { useOrderOperations } from '../hooks/useOrderOperations';
 import { TransferModal } from '../components/TransferModal';
 import { PaymentModal } from '../components/PaymentModal';
+import { ConfirmModal } from '../components/ConfirmModal';
 import { enrichOrderDetails, getPaidAmount } from '../utils/orderHelpers';
 import { printOrderReceipt, generateReceiptHTML, isSandboxed } from '../services/printService';
 import { useCurrency } from '../CurrencyContext';
@@ -20,7 +21,7 @@ import { useToast } from '../context/ToastContext';
 import { usePrintPreview } from '../context/PrintPreviewContext';
 
 export const FloorPlan: React.FC = () => {
-  const { tables, orders, menuItems, refreshData, addLocalOrder, addItemToSession, checkoutSession, updateLocalOrder, cancelOrder, loading, moveTable, mergeOrders } = useData();
+  const { tables, orders, menuItems, refreshData, addLocalOrder, addItemToSession, checkoutSession, updateLocalOrder, cancelOrder, loading, moveTable, mergeOrders, saveTableLayout, deleteTable: deleteTableContext } = useData();
   const { performCancelOrder } = useOrderOperations();
   const { t } = useTheme();
   const { settings, can } = useSettingsContext();
@@ -50,6 +51,9 @@ export const FloorPlan: React.FC = () => {
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [modifiedItems, setModifiedItems] = useState<OrderItem[] | null>(null);
 
+  // New state for custom confirm modal
+  const [pendingDeleteTableId, setPendingDeleteTableId] = useState<string | null>(null);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const [localTables, setLocalTables] = useState<TableData[]>([]);
   
@@ -63,34 +67,150 @@ export const FloorPlan: React.FC = () => {
     setHasUnsavedChanges(true);
   };
 
-  const deleteTable = (id: string) => {
-    if (confirm(t('Are you sure you want to delete this table?'))) {
-      setLocalTables(prev => prev.filter(t => t.id !== id));
-      setHasUnsavedChanges(true);
-      setEditingTableId(null);
+  const onRequestDeleteTable = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    
+    const activeOrder = (orders || []).find(o => String(o.table_id) === String(id) && ['Pending', 'Cooking', 'Ready'].includes(o.status));
+    if (activeOrder) {
+       alert(t('Cannot delete table with active order'));
+       return;
     }
+    
+    setPendingDeleteTableId(id);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!pendingDeleteTableId) return;
+    const id = pendingDeleteTableId;
+
+    // 1. Trigger deletion via DataContext immediately
+    try {
+        await deleteTableContext(id);
+        // 2. Update local visual state
+        setLocalTables(prev => prev.filter(t => t.id !== id));
+        setEditingTableId(null);
+        showToast(t('Table Deleted'), 'success');
+    } catch (e) {
+        console.error("Failed to delete table:", e);
+        showToast(t('Error'), 'error');
+    } finally {
+        setPendingDeleteTableId(null);
+    }
+  };
+
+  const handleAddTable = () => {
+    const newId = crypto.randomUUID();
+    const newTable: TableData = {
+      id: newId,
+      label: `T-${localTables.length + 1}`,
+      x: 45, // Approximately center
+      y: 45,
+      width: 120, // Standard size
+      height: 120,
+      shape: 'round',
+      seats: 4,
+      status: 'Available'
+    };
+
+    setLocalTables([...localTables, newTable]);
+    setHasUnsavedChanges(true);
+    setEditingTableId(newId);
   };
 
   const handleSaveLayout = async () => {
     setIsSaving(true);
-    setTimeout(() => {
-        setIsSaving(false);
+    try {
+        await saveTableLayout(localTables);
         setIsEditMode(false);
         setHasUnsavedChanges(false);
-    }, 500);
+        showToast(t('Saved'), 'success');
+    } catch (e) {
+        console.error("Save layout failed", e);
+        showToast(t('Error'), 'error');
+    } finally {
+        setIsSaving(false);
+    }
   };
 
-  // --- Handlers for Dragging (Simplified for example) ---
+  // --- Handlers for Dragging ---
   const handleMouseDownDrag = (e: React.MouseEvent, table: TableData) => {
     if (!isEditMode) {
         if (selectedTableId !== table.id) setSelectedTableId(table.id);
         return;
     }
+
+    e.preventDefault();
+    e.stopPropagation(); // Prevent container click
+    
     setEditingTableId(table.id);
+
+    const container = containerRef.current;
+    if (!container) return;
+
+    const containerRect = container.getBoundingClientRect();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    
+    // Store initial percentage positions
+    const initialX = table.x || 0;
+    const initialY = table.y || 0;
+
+    const onMouseMove = (ev: MouseEvent) => {
+        const deltaX = ev.clientX - startX;
+        const deltaY = ev.clientY - startY;
+
+        // Convert pixels to percentage relative to container
+        const deltaXPercent = (deltaX / containerRect.width) * 100;
+        const deltaYPercent = (deltaY / containerRect.height) * 100;
+
+        // Calculate new position
+        const newX = Math.max(0, Math.min(100, initialX + deltaXPercent));
+        const newY = Math.max(0, Math.min(100, initialY + deltaYPercent));
+
+        setLocalTables(prev => prev.map(t => 
+            t.id === table.id ? { ...t, x: newX, y: newY } : t
+        ));
+        setHasUnsavedChanges(true);
+    };
+
+    const onMouseUp = () => {
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
   };
 
   const handleResizeStart = (e: React.MouseEvent, table: TableData) => {
       e.stopPropagation();
+      e.preventDefault();
+      
+      const container = containerRef.current;
+      if (!container) return;
+
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const initialWidth = table.width || 100;
+      const initialHeight = table.height || 100;
+
+      const onMouseMove = (ev: MouseEvent) => {
+          const deltaX = ev.clientX - startX;
+          const deltaY = ev.clientY - startY;
+
+          const newWidth = Math.max(60, initialWidth + deltaX);
+          const newHeight = Math.max(60, initialHeight + deltaY);
+
+          updateTable(table.id, { width: newWidth, height: newHeight });
+      };
+
+      const onMouseUp = () => {
+          document.removeEventListener('mousemove', onMouseMove);
+          document.removeEventListener('mouseup', onMouseUp);
+      };
+
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
   };
 
   const handleTableClick = (e: React.MouseEvent, table: TableData) => {
@@ -168,14 +288,14 @@ export const FloorPlan: React.FC = () => {
               
               const newId = await addLocalOrder(fullOrderData);
               console.log(`[CONFIRM_FLOW] New Order Created: ${newId}`);
-              showToast(t('Đã mở bàn mới thành công'), 'success');
+              showToast(t('Table Opened Successfully'), 'success');
           }
           
           setIsAddItemsModalOpen(false);
           setCurrentOrderItems([]); // Reset local state
       } catch (e: any) {
           console.error(`[CONFIRM_FLOW] Error:`, e);
-          showToast(t('Lỗi khi lưu đơn hàng'), 'error');
+          showToast(t('Failed to Save Order'), 'error');
       }
   };
 
@@ -267,10 +387,10 @@ export const FloorPlan: React.FC = () => {
 
   const performPrint = async (order: any) => {
     if (isSandboxed() && settings.printMethod !== 'rawbt') {
-        const html = await generateReceiptHTML(order, settings.paperSize as any);
+        const html = await generateReceiptHTML(order, settings);
         openPreview({ html, title: 'In hóa đơn', meta: { action: 'REPRINT_ON_EDIT' } });
     } else {
-        await printOrderReceipt(order);
+        await printOrderReceipt(order, settings);
     }
   };
 
@@ -303,7 +423,14 @@ export const FloorPlan: React.FC = () => {
       <header className="h-16 flex items-center justify-between px-6 border-b border-border bg-background shrink-0 z-40">
         <div className="flex items-center gap-4"><h2 className="text-text-main text-xl font-bold">{t('Main Hall')}</h2>{isEditMode ? (<div className="flex items-center gap-2 text-primary bg-primary/10 px-3 py-1 rounded-full border border-primary/20"><span className="text-xs font-bold uppercase">{t('Editor Mode')}</span></div>) : (<div className="flex items-center gap-2 text-primary bg-primary/10 px-3 py-1 rounded-full border border-primary/20"><span className="size-2 rounded-full bg-primary animate-pulse"></span><span className="text-xs font-bold uppercase">{t('Live')}</span></div>)}</div>
         {canEditLayout && (
-          <button onClick={isEditMode ? handleSaveLayout : () => setIsEditMode(true)} disabled={isSaving} className={`h-10 px-4 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${isEditMode ? 'bg-primary text-background shadow-lg shadow-primary/20' : 'bg-surface border border-border text-text-main hover:border-primary'}`}>{isEditMode ? (isSaving ? <Loader2 className="animate-spin" size={16}/> : <Save size={16}/>) : <Layout size={16}/>}{isEditMode ? (hasUnsavedChanges ? t('Save Changes') : t('Done')) : t('Edit Layout')}</button>
+          <div className="flex gap-2">
+            {isEditMode && (
+              <button onClick={handleAddTable} className="h-10 px-4 rounded-xl text-sm font-bold bg-surface border border-border text-text-main hover:border-primary flex items-center gap-2 transition-all shadow-sm">
+                <Plus size={16} /> {t('Add Table')}
+              </button>
+            )}
+            <button onClick={isEditMode ? handleSaveLayout : () => setIsEditMode(true)} disabled={isSaving} className={`h-10 px-4 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${isEditMode ? 'bg-primary text-background shadow-lg shadow-primary/20' : 'bg-surface border border-border text-text-main hover:border-primary'}`}>{isEditMode ? (isSaving ? <Loader2 className="animate-spin" size={16}/> : <Save size={16}/>) : <Layout size={16}/>}{isEditMode ? (hasUnsavedChanges ? t('Save Changes') : t('Done')) : t('Edit Layout')}</button>
+          </div>
         )}
       </header>
       <div className="flex-1 relative overflow-hidden">
@@ -388,7 +515,7 @@ export const FloorPlan: React.FC = () => {
                 <span className="text-lg font-black tracking-tight">{table.label}</span>
                 {isEditing && (
                   <div onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()} className="absolute z-[110] top-full mt-2 left-1/2 -translate-x-1/2 w-[220px] bg-surface border border-border rounded-xl shadow-2xl p-3 animate-in fade-in zoom-in-95 duration-200">
-                    <div className="flex items-center gap-2 mb-3"><div className="relative flex-1 group"><Type size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-secondary" /><input type="text" value={table.label} onChange={(e) => updateTable(table.id, { label: e.target.value })} className="w-full bg-background border border-border rounded-lg py-1.5 pl-7 pr-2 text-text-main text-xs font-bold outline-none" placeholder="Label" /></div><button onClick={() => deleteTable(table.id)} className="p-1.5 text-secondary hover:text-red-500 rounded-lg transition-colors"><Trash2 size={16} /></button></div>
+                    <div className="flex items-center gap-2 mb-3"><div className="relative flex-1 group"><Type size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-secondary" /><input type="text" value={table.label} onChange={(e) => updateTable(table.id, { label: e.target.value })} className="w-full bg-background border border-border rounded-lg py-1.5 pl-7 pr-2 text-text-main text-xs font-bold outline-none" placeholder="Label" /></div><button onClick={(e) => onRequestDeleteTable(table.id, e)} className="p-1.5 text-secondary hover:text-red-500 rounded-lg transition-colors"><Trash2 size={16} /></button></div>
                     <div className="mb-3"><span className="text-[10px] font-black text-secondary uppercase tracking-widest mb-1 block">SHAPE</span><div className="grid grid-cols-3 gap-1 bg-background p-1 rounded-lg border border-border"><button onClick={() => updateTable(table.id, { shape: 'square' })} className={`flex items-center justify-center p-1.5 rounded-md transition-all ${table.shape === 'square' ? 'bg-primary text-background' : 'text-secondary hover:text-text-main'}`}><Square size={14} /></button><button onClick={() => updateTable(table.id, { shape: 'round' })} className={`flex items-center justify-center p-1.5 rounded-md transition-all ${table.shape === 'round' ? 'bg-primary text-background' : 'text-secondary hover:text-text-main'}`}><Circle size={14} /></button><button onClick={() => updateTable(table.id, { shape: 'rect' })} className={`flex items-center justify-center p-1.5 rounded-md transition-all ${table.shape === 'rect' ? 'bg-primary text-background' : 'text-secondary hover:text-text-main'}`}><RectangleHorizontal size={14} /></button></div></div>
                     <div><span className="text-[10px] font-black text-secondary uppercase tracking-widest mb-1 block">SEATS</span><div className="flex items-center justify-between bg-background p-1.5 rounded-lg border border-border"><Users size={14} className="text-secondary ml-1" /><div className="flex items-center gap-3"><button onClick={() => updateTable(table.id, { seats: Math.max(1, (table.seats || 2) - 1) })} className="w-6 h-6 flex items-center justify-center bg-surface border border-border rounded hover:bg-border text-text-main"><Minus size={12} /></button><span className="text-xs font-bold text-text-main min-w-[12px] text-center">{table.seats || 2}</span><button onClick={() => updateTable(table.id, { seats: (table.seats || 2) + 1 })} className="w-6 h-6 flex items-center justify-center bg-surface border border-border rounded hover:bg-border text-text-main"><Plus size={12} /></button></div></div></div>
                   </div>
@@ -441,7 +568,7 @@ export const FloorPlan: React.FC = () => {
                       className="w-full h-12 bg-primary text-background rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all text-sm"
                       style={{ minHeight: 'var(--pos-btn-h)' }}
                     >
-                      <Plus size={18} /> {t('Mở bàn mới')}
+                      <Plus size={18} /> {t('Open Table')}
                     </button>
                   </div>
                 );
@@ -668,7 +795,7 @@ export const FloorPlan: React.FC = () => {
                   {currentOrderItems.filter((i: any) => i.isNew).length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-secondary opacity-30 gap-3">
                        <ShoppingBag size={48} strokeWidth={1}/>
-                       <p className="text-xs font-bold">{t('Chọn món để thêm')}</p>
+                       <p className="text-xs font-bold">{t('Select Item to Add')}</p>
                     </div>
                   ) : (
                     currentOrderItems.filter((i: any) => i.isNew).map((it, idx) => (
@@ -704,6 +831,7 @@ export const FloorPlan: React.FC = () => {
                             }} className="size-6 flex items-center justify-center hover:bg-border rounded text-secondary hover:text-primary"><Plus size={12}/></button>
                           </div>
                         </div>
+                        
                         <button 
                           onClick={() => {
                             setNoteInput(it.note || '');
@@ -808,10 +936,10 @@ export const FloorPlan: React.FC = () => {
                         staff: user?.user_metadata?.full_name || 'POS' 
                     };
                     if (isSandboxed() && settings.printMethod !== 'rawbt') {
-                        const html = await generateReceiptHTML(completedOrder, settings.paperSize as any);
+                        const html = await generateReceiptHTML(completedOrder, settings);
                         openPreview({ html, title: 'In hóa đơn', meta: { action: 'FINAL_ON_PAYMENT' } });
                     } else {
-                        printOrderReceipt(completedOrder);
+                        printOrderReceipt(completedOrder, settings);
                     }
                   }
                   setShowPaymentModal(false); 
@@ -822,11 +950,11 @@ export const FloorPlan: React.FC = () => {
               }} 
               onPrint={() => {
                   if (isSandboxed() && settings.printMethod !== 'rawbt') {
-                      generateReceiptHTML({ ...active, table: (tables || []).find(t => t.id === selectedTableId)?.label }, settings.paperSize as any).then(html => {
+                      generateReceiptHTML({ ...active, table: (tables || []).find(t => t.id === selectedTableId)?.label }, settings).then(html => {
                           openPreview({ html, title: 'In hóa đơn', meta: { action: 'REPRINT_ON_EDIT' } });
                       });
                   } else {
-                      printOrderReceipt({ ...active, table: (tables || []).find(t => t.id === selectedTableId)?.label });
+                      printOrderReceipt({ ...active, table: (tables || []).find(t => t.id === selectedTableId)?.label }, settings);
                   }
               }} 
               totalAmount={subtotal} 
@@ -841,6 +969,17 @@ export const FloorPlan: React.FC = () => {
             />
           );
       })()}
+
+      <ConfirmModal 
+        isOpen={!!pendingDeleteTableId}
+        title={t('Xác nhận hành động')}
+        message={`${t('Xác nhận xóa bàn')} ${localTables.find(t => t.id === pendingDeleteTableId)?.label}? \n\n${t('Thao tác này không thể hoàn tác.')}`}
+        onClose={() => setPendingDeleteTableId(null)}
+        onConfirm={handleConfirmDelete}
+        confirmText={t('Xoá')}
+        cancelText={t('Huỷ')}
+        isDanger={true}
+      />
     </div>
   );
 };

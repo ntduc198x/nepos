@@ -20,32 +20,34 @@ export type { SettingControlType, SettingOption, SettingItemConfig, SettingSecti
 
 // --- COMPONENTS ---
 
-// ... (DashboardCard component remains unchanged) ...
-const DashboardCard: React.FC<{ title: string; description: string; icon: any; status?: string; onClick: () => void }> = ({ title, description, icon: Icon, status, onClick }) => (
-  <button 
-    onClick={onClick}
-    className="flex flex-col text-left p-6 bg-surface border border-border rounded-2xl hover:border-primary/50 hover:shadow-lg hover:shadow-primary/5 transition-all group relative overflow-hidden h-full"
-  >
-    <div className="flex justify-between items-start w-full mb-4">
-      <div className="p-3 bg-background rounded-xl text-primary border border-border group-hover:scale-110 transition-transform">
-        <Icon size={24} strokeWidth={1.5} />
-      </div>
-      {status && (
-        <div className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border
-          ${status === 'active' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 
-            status === 'warning' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
-            'bg-red-500/10 text-red-500 border-red-500/20'}`}>
-          {status === 'active' ? 'Vận hành: Mượt' : status === 'warning' ? 'Cần chú ý' : 'Lỗi'}
+const DashboardCard: React.FC<{ title: string; description: string; icon: any; status?: string; onClick: () => void }> = ({ title, description, icon: Icon, status, onClick }) => {
+  const { t } = useTheme();
+  return (
+    <button 
+      onClick={onClick}
+      className="flex flex-col text-left p-6 bg-surface border border-border rounded-2xl hover:border-primary/50 hover:shadow-lg hover:shadow-primary/5 transition-all group relative overflow-hidden h-full"
+    >
+      <div className="flex justify-between items-start w-full mb-4">
+        <div className="p-3 bg-background rounded-xl text-primary border border-border group-hover:scale-110 transition-transform">
+          <Icon size={24} strokeWidth={1.5} />
         </div>
-      )}
-    </div>
-    <h3 className="text-lg font-bold text-text-main mb-1 group-hover:text-primary transition-colors">{title}</h3>
-    <p className="text-xs text-secondary leading-relaxed line-clamp-2">{description}</p>
-    <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity -translate-x-2 group-hover:translate-x-0">
-      <ChevronRight className="text-primary" size={20} />
-    </div>
-  </button>
-);
+        {status && (
+          <div className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border
+            ${status === 'active' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 
+              status === 'warning' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
+              'bg-red-500/10 text-red-500 border-red-500/20'}`}>
+            {status === 'active' ? t('Vận hành: Mượt') : status === 'warning' ? t('Cần chú ý') : t('Lỗi')}
+          </div>
+        )}
+      </div>
+      <h3 className="text-lg font-bold text-text-main mb-1 group-hover:text-primary transition-colors">{title}</h3>
+      <p className="text-xs text-secondary leading-relaxed line-clamp-2">{description}</p>
+      <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity -translate-x-2 group-hover:translate-x-0">
+        <ChevronRight className="text-primary" size={20} />
+      </div>
+    </button>
+  );
+};
 
 // ... (DangerModal component remains unchanged) ...
 const DangerModal: React.FC<{ isOpen: boolean; title: string; message: string; confirmText: string; onClose: () => void; onConfirm: () => void; requireInput?: string; isDanger?: boolean }> = ({ isOpen, title, message, confirmText, onClose, onConfirm, requireInput, isDanger = true }) => {
@@ -398,7 +400,7 @@ const SettingsListRenderer: React.FC<{
     const val = item.valueKey ? values[item.valueKey] : '';
     switch (item.type) {
       case 'toggle': return <button disabled={item.disabled} onClick={() => handleToggle(item, !!val)} className={`w-11 h-6 rounded-full relative transition-colors ${val ? (item.disabled ? 'bg-primary/50' : 'bg-primary') : (item.disabled ? 'bg-border/50' : 'bg-border')}`}><span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow-sm ${val ? 'translate-x-5' : 'translate-x-0'}`} /></button>;
-      case 'select': return <select disabled={item.disabled} value={val} onChange={(e) => onValueChange(item.valueKey!, e.target.value)} className="bg-surface border border-border rounded-lg px-3 py-2 text-sm font-bold text-text-main outline-none focus:border-primary cursor-pointer max-w-[150px] disabled:opacity-50 disabled:cursor-not-allowed">{item.options?.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}</select>;
+      case 'select': return <select disabled={item.disabled} value={val} onChange={(e) => onValueChange(item.valueKey!, e.target.value)} className="bg-surface border border-border rounded-lg px-3 py-2 text-sm font-bold text-text-main outline-none focus:border-primary cursor-pointer max-w-[150px] disabled:opacity-50 disabled:cursor-not-allowed">{item.options?.map(opt => <option key={opt.value} value={opt.value}>{t(opt.label)}</option>)}</select>;
       case 'input': return <SettingInput item={item} value={val} onChange={(newVal) => onValueChange(item.valueKey!, newVal)} isAdmin={isAdmin} />;
       case 'button': return <button disabled={item.disabled} onClick={() => { if (item.actionId === 'change_password') setShowPwModal(true); else onAction(item.actionId!); }} className={`px-4 py-2 border rounded-lg text-sm font-bold transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${item.variant === 'primary' ? 'bg-primary text-background border-primary hover:bg-primary-hover' : 'bg-surface border-border text-text-main hover:bg-border'}`}>{t(item.label)}</button>;
       case 'action-danger': return <button disabled={item.disabled} onClick={() => setDangerModal({ open: true, type: item.actionId!, isDanger: true })} className="px-4 py-2 bg-red-500/10 text-red-500 border border-red-500/20 rounded-lg text-sm font-bold hover:bg-red-500 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed">{t(item.label)}</button>;
@@ -861,7 +863,7 @@ export const Settings: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
           title: 'Offline & Đồng bộ',
           items: [
             { id: 'autoSync', label: 'Tự động đồng bộ', subtitle: 'Tự đẩy dữ liệu lên server khi có mạng', type: 'toggle', valueKey: 'autoSync' },
-            { id: 'syncNow', label: combinedValues.networkStatusLabel === 'Offline' ? 'Đang Offline' : 'Đồng bộ ngay', subtitle: 'Đẩy thủ công các đơn Offline lên hệ thống', type: 'button', actionId: 'sync_now', disabled: combinedValues.networkStatusLabel === 'Offline' },
+            { id: 'syncNow', label: combinedValues.networkStatusLabel === 'Offline' ? t('Đang Offline') : t('Đồng bộ ngay'), subtitle: 'Đẩy thủ công các đơn Offline lên hệ thống', type: 'button', actionId: 'sync_now', disabled: combinedValues.networkStatusLabel === 'Offline' },
             { id: 'networkStatusLabel', label: 'Trạng thái mạng', type: 'info', valueKey: 'networkStatusLabel' },
             { id: 'pendingSyncCount', label: 'Đơn chờ đồng bộ', type: 'info', valueKey: 'pendingSyncCount' },
             { id: 'lastSyncTime', label: 'Lần đồng bộ cuối', type: 'info', valueKey: 'lastSyncTimeDisplay' },

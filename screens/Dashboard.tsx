@@ -33,7 +33,7 @@ export const Dashboard: React.FC = () => {
   const { user, role: userRole } = useAuth();
   const { settings, guardSensitive, can } = useSettingsContext();
   const { 
-    orders, menuItems, tables, checkoutSession, 
+    orders, menuItems, tables, checkoutSession, refreshOrdersForDashboard,
     updateLocalOrder, addItemToSession, moveTable, mergeOrders, loading: dataLoading 
   } = useData();
   
@@ -56,6 +56,11 @@ export const Dashboard: React.FC = () => {
   
   // State to store Admin IDs for filtering Manager view
   const [adminIds, setAdminIds] = useState<Set<string>>(new Set());
+
+  // Trigger Dashboard specific refresh on mount
+  useEffect(() => {
+      refreshOrdersForDashboard();
+  }, []);
 
   // Fetch Admin IDs if current user is Manager
   useEffect(() => {
@@ -315,23 +320,19 @@ export const Dashboard: React.FC = () => {
     }
   };
 
-  // --- RAW PRINT LOGIC (No Guard) ---
   const performPrint = async (order: any) => {
     if (!order) return;
     const { items: enriched } = enrichOrderDetails(order, menuItems);
     const orderToPrint = { ...order, items: enriched };
     
-    // If Sandbox or Generic Thermal (unknown), try Preview first for safety/debugging
-    // OR if user explicitly asks for Preview
     if (isSandboxed() && settings.printMethod !== 'rawbt') {
-        const html = await generateReceiptHTML(orderToPrint, settings.paperSize as any);
+        const html = await generateReceiptHTML(orderToPrint, settings);
         openPreview({ html, title: 'In hóa đơn', meta: { action: 'REPRINT_ON_EDIT' } });
     } else {
-        await printOrderReceipt(orderToPrint);
+        await printOrderReceipt(orderToPrint, settings);
     }
   };
 
-  // --- GUARDED PRINT LOGIC (For Dashboard Button) ---
   const handlePrintClick = async (order: any) => {
     if (!order) return;
     await guardSensitive('reprint_receipt', () => performPrint(order));
@@ -343,7 +344,6 @@ export const Dashboard: React.FC = () => {
     try {
       await checkoutSession(viewingOrder.id, String(viewingOrder.table_id || 'Takeaway'), method, discountInfo, paymentAmount);
       if (shouldPrint) {
-         // Auto-print upon completion
          const { items: enriched, totalAmount: subtotal } = enrichOrderDetails(viewingOrder, menuItems);
          const discountAmount = discountInfo?.amount || 0;
          const finalTotal = Math.max(0, subtotal - discountAmount);
@@ -409,7 +409,7 @@ export const Dashboard: React.FC = () => {
                 </div>
               )}
               <div className="text-[10px] font-black bg-surface text-secondary border border-border px-2 py-1 rounded-full uppercase tracking-tighter">
-                {isOnline ? 'Online' : 'Offline'}
+                {isOnline ? t('Online') : t('Offline')}
               </div>
             </div>
           </div>
@@ -538,7 +538,6 @@ export const Dashboard: React.FC = () => {
                   </div>
                </div>
                <div className="flex items-center gap-2">
-                  {/* Merge Button: Only for active Dine-in orders */}
                   {isOrderActive(viewingOrder.status) && tables.some(t => t.id === viewingOrder.table_id) && (
                     <button 
                       onClick={() => setShowTransferModal(true)} 
@@ -562,7 +561,6 @@ export const Dashboard: React.FC = () => {
                </div>
             </header>
 
-            {/* ... (Existing Detail UI Body - Items, Totals, Actions) ... */}
             <div className="flex-1 overflow-y-auto p-4 lg:p-6 custom-scrollbar bg-surface/30 
               pb-[calc(240px+env(safe-area-inset-bottom,0px)+72px)] lg:pb-8">
                {(() => {
@@ -574,7 +572,6 @@ export const Dashboard: React.FC = () => {
                     <div className="space-y-3">
                       {displayItems.map((it: any, idx: number) => (
                         <div key={idx} className="bg-background border border-border rounded-2xl p-4 flex flex-col gap-3 group transition-all hover:border-primary/30">
-                          {/* Item Display Logic */}
                           <div className="flex items-start justify-between gap-3">
                             <div className="shrink-0 pt-1">
                               {isActive ? (
@@ -727,7 +724,6 @@ export const Dashboard: React.FC = () => {
         )}
       </div>
 
-      {/* ... Add Items Modal ... */}
       {isAddItemsModalOpen && (
         <div className="fixed inset-0 z-[100] bg-background flex flex-col animate-in slide-in-from-bottom duration-300">
            <div className="h-16 flex items-center justify-between px-6 border-b border-border bg-surface shrink-0 shadow-sm">
@@ -792,7 +788,6 @@ export const Dashboard: React.FC = () => {
               </div>
 
               <div className="w-[380px] border-l border-border bg-surface flex flex-col shadow-2xl shrink-0">
-                {/* ... (Existing Right Panel for Add Items) ... */}
                 <div className="p-5 border-b border-border bg-background/50 flex items-center justify-between">
                   <span className="font-bold text-xs uppercase tracking-widest text-primary">{t('Items to Add')}</span>
                   <span className="text-[10px] font-black bg-primary/10 text-primary px-2 py-0.5 rounded-full">{currentOrderItems.length} Món</span>
@@ -878,7 +873,6 @@ export const Dashboard: React.FC = () => {
         </div>
       )}
 
-      {/* ... (Note, Transfer, Payment Modals) ... */}
       {isNoteModalOpen && (
           <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
               <div className="bg-surface border border-border rounded-2xl w-full max-w-md p-6 shadow-2xl animate-in zoom-in-95 duration-200">

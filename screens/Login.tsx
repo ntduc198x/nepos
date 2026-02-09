@@ -94,7 +94,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
           <div className="size-20 rounded-2xl bg-primary flex items-center justify-center text-background mb-8 shadow-2xl shadow-primary/20">
             <ChefHat size={48} strokeWidth={2} />
           </div>
-          <h1 className="text-4xl font-bold mb-4 text-white">{t('ResBar POS System')}</h1>
+          <h1 className="text-4xl font-bold mb-4 text-white">{t('Nepos System')}</h1>
           <p className="text-lg text-gray-300 leading-relaxed">
             {t('LoginDescription')}
           </p>
@@ -106,7 +106,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
         <div className="w-full max-w-md space-y-8">
           <div className="text-center lg:text-left animate-in slide-in-from-bottom-4 duration-500">
             <h2 className="text-3xl font-bold tracking-tight text-text-main">
-              {isSignUp ? t('Create an Account') : t('Welcome to ResBar Pos')}
+              {isSignUp ? t('Create an Account') : t('Welcome to Nepos')}
             </h2>
             <p className="text-secondary mt-2">
               {isSignUp ? t('Register text') : t('Login text')}
@@ -142,7 +142,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                   </div>
                   <input 
                     type="email" 
-                    placeholder="manager@resbar.com"
+                    placeholder="manager@nepos.com"
                     value={email}
                     onChange={e => setEmail(e.target.value)}
                     className="w-full bg-surface border border-border rounded-xl py-3.5 pl-10 pr-4 text-text-main placeholder-secondary/50 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all shadow-sm"

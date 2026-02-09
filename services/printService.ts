@@ -28,15 +28,6 @@ export const isSandboxed = (): boolean => {
   }
 };
 
-const generateQR = async (text: string, width = 150): Promise<string> => {
-  try {
-    return await QRCode.toDataURL(text, { width: width, margin: 0, errorCorrectionLevel: 'M' });
-  } catch (err) {
-    console.error("Lỗi tạo QR Offline:", err);
-    return '';
-  }
-};
-
 // New Helper: Fetch remote image and convert to Base64 for embedding
 const fetchImageAsBase64 = async (url: string): Promise<string | null> => {
   try {
@@ -55,17 +46,53 @@ const fetchImageAsBase64 = async (url: string): Promise<string | null> => {
 };
 
 /**
- * GENERATE RECEIPT HTML - THERMAL PRINTER OPTIMIZED
- * Fix: Explicitly define Physical Width (80mm) vs Content Width (72mm)
+ * Helper to resolve settings with fallbacks
  */
-export const generateReceiptHTML = async (order: any, paperSize: '58mm' | '80mm' = '80mm') => {
+const getEffectiveSettings = (injectedSettings?: any) => {
+  if (injectedSettings && Object.keys(injectedSettings).length > 0) {
+    return injectedSettings;
+  }
+  try {
+    // Priority 1: New Device Global Key
+    const globalStr = localStorage.getItem('RESBAR_SETTINGS_STORE:device_global');
+    if (globalStr) return JSON.parse(globalStr).data;
+
+    // Priority 2: Legacy Key
+    const legacyStr = localStorage.getItem('RESBAR_SETTINGS_STORE');
+    if (legacyStr) return JSON.parse(legacyStr).data;
+  } catch (e) {
+    console.warn("Failed to load settings from storage", e);
+  }
+  return {};
+};
+
+/**
+ * GENERATE RECEIPT HTML - THERMAL PRINTER OPTIMIZED
+ * Accepts optional 'settings' object to ensure immediate update reflection.
+ */
+export const generateReceiptHTML = async (order: any, settingsOrPaperSize?: any) => {
+  // Handle overload: settings object OR paperSize string
+  let settings: any = {};
+  let forcedPaperSize = '';
+
+  if (typeof settingsOrPaperSize === 'string') {
+    forcedPaperSize = settingsOrPaperSize;
+    settings = getEffectiveSettings();
+  } else {
+    settings = getEffectiveSettings(settingsOrPaperSize);
+  }
+
+  const paperSize = forcedPaperSize || settings.paperSize || '80mm';
+
+  console.log("🖨️ [Print] Resolving Store Info:", {
+    name: settings.counterName,
+    address: settings.counterAddress,
+    phone: settings.counterPhone
+  });
+
   const subtotal = order.subtotal || order.total_amount || order.total || 0;
   const discount = order.discount_amount || 0;
   const finalTotal = order.total_amount ?? (subtotal - discount);
-
-  // --- Settings & Config ---
-  const storedSettingsStr = localStorage.getItem('RESBAR_SETTINGS_STORE');
-  const storedSettings = storedSettingsStr ? JSON.parse(storedSettingsStr)?.data : {};
 
   const isSmall = paperSize === '58mm';
 
@@ -73,21 +100,19 @@ export const generateReceiptHTML = async (order: any, paperSize: '58mm' | '80mm'
   const physicalWidthMm = isSmall ? 58 : 80;
 
   // 2. SAFE PRINTABLE AREA (Content Width)
-  // 80mm printer -> ~72mm printable
-  // 58mm printer -> ~48mm printable
   const safeWidthMm = isSmall ? 48 : 72;
 
   // Font scaling
-  const baseFontSize = isSmall ? '11px' : '12px';
-  const headerFontSize = isSmall ? '14px' : '16px';
+  const baseFontSize = isSmall ? '12px' : '13px';
+  const headerFontSize = isSmall ? '15px' : '17px';
 
   const config = {
-    storeName: storedSettings?.counterName || "ThongDong Coffee F&B",
-    address: storedSettings?.counterAddress || "",
-    phone: storedSettings?.counterPhone || "",
-    wifiName: storedSettings?.wifiName || "",
-    wifiPass: storedSettings?.wifiPassword || "",
-    footerMessage: storedSettings?.receiptNote || "Xin cảm ơn & Hẹn gặp lại!"
+    storeName: settings.counterName || settings.storeName || "Nepos",
+    address: settings.counterAddress || settings.storeAddress || "",
+    phone: settings.counterPhone || settings.storePhone || "",
+    wifiName: settings.wifiName || "",
+    wifiPass: settings.wifiPassword || "",
+    footerMessage: settings.receiptNote || "Xin cảm ơn & Hẹn gặp lại!"
   };
 
   const bankConfigStr = localStorage.getItem('bank_config');
@@ -105,12 +130,7 @@ export const generateReceiptHTML = async (order: any, paperSize: '58mm' | '80mm'
   let qrHtml = '';
   if (showQr) {
     const qrUrl = `https://img.vietqr.io/image/${bankConfig.bankId}-${bankConfig.accountNo}-compact.png?amount=${finalTotal}&addInfo=${encodeURIComponent(order.id)}&accountName=${encodeURIComponent(bankConfig.accountName)}`;
-
-    // FIX: Use the actual image from VietQR, do NOT generate a QR code of the URL string.
-    // We convert it to Base64 to ensure it prints reliably (no loading race conditions).
     let imgSource = await fetchImageAsBase64(qrUrl);
-
-    // Fallback: If fetch fails (e.g. offline/CORS), use URL directly and hope printer/browser handles it.
     if (!imgSource) imgSource = qrUrl;
 
     qrHtml = `
@@ -323,7 +343,7 @@ export const generateReceiptHTML = async (order: any, paperSize: '58mm' | '80mm'
 
             <div class="footer">
               <div class="break-word">${config.footerMessage}</div>
-              <div style="font-size: 8px; opacity: 0.6; margin-top: 4px;">Powered by ResBar POS</div>
+              <div style="font-size: 8px; opacity: 0.6; margin-top: 4px;">Powered by Nepos</div>
             </div>
 
           </div>
@@ -358,16 +378,31 @@ const printViaRawBT = (html: string) => {
   window.location.href = `rawbt:data:text/html;base64,${utf8ToBase64(html)}`;
 };
 
-export const printOrderReceipt = async (order: any) => {
+/**
+ * Print Order Receipt
+ * @param order Order data
+ * @param settings Optional settings object to override storage lookup (ensures up-to-date data)
+ */
+export const printOrderReceipt = async (order: any, settings?: any) => {
   if (!order) return;
-  const printConfig = JSON.parse(localStorage.getItem('print_config') || '{"method":"browser","paperSize":"80mm"}');
-  const html = await generateReceiptHTML(order, printConfig.paperSize || '80mm');
-  if (isSandboxed() && printConfig.method !== 'rawbt') return;
-  if (printConfig.method === 'rawbt') printViaRawBT(html);
+
+  // Use passed settings or fetch effective settings
+  const effSettings = getEffectiveSettings(settings);
+
+  const html = await generateReceiptHTML(order, effSettings);
+  const printMethod = effSettings.printMethod || 'browser';
+
+  if (isSandboxed() && printMethod !== 'rawbt') return;
+
+  if (printMethod === 'rawbt') printViaRawBT(html);
   else printViaIframe(html);
 };
 
-export const printTestTicket = async (): Promise<string> => {
+/**
+ * Print Test Ticket
+ * @param settings Optional settings to test current config
+ */
+export const printTestTicket = async (settings?: any): Promise<string> => {
   const testOrder = {
     id: "TEST-8888", table: "TEST", staff_name: "Admin", created_at: new Date().toISOString(),
     total_amount: 55000, subtotal: 55000,
@@ -377,5 +412,5 @@ export const printTestTicket = async (): Promise<string> => {
     ],
     payment_method: "Cash"
   };
-  return await generateReceiptHTML(testOrder, '80mm');
+  return await generateReceiptHTML(testOrder, settings);
 };
