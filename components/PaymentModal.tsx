@@ -253,9 +253,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4 animate-in fade-in duration-200">
       <div 
-        className={`bg-surface border border-border rounded-2xl w-full max-w-md shadow-2xl flex flex-col transition-all duration-300 ${method === 'Transfer' && (view === 'payment') ? 'max-w-xl' : 'max-w-md'}`}
+        className={`bg-surface border-t sm:border border-border rounded-t-3xl sm:rounded-2xl w-full max-w-md shadow-2xl flex flex-col transition-all duration-300 
+        h-[85vh] sm:h-auto sm:max-h-[90vh]
+        ${method === 'Transfer' && (view === 'payment') ? 'sm:max-w-xl' : 'sm:max-w-md'}`}
         style={{ borderWidth: 'var(--pos-border-strong)' }}
       >
         
@@ -591,7 +593,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 className="h-[var(--pos-btn-h)] px-4 bg-surface border border-border rounded-xl font-bold text-text-main hover:bg-border flex items-center justify-center gap-2 transition-all disabled:opacity-70 flex-1 sm:flex-none"
               >
                 <Printer size={20} />
-                <span>{t('Print')}</span>
+                <span className="hidden sm:inline">{t('Print')}</span>
+                <span className="sm:hidden">{t('Print')}</span>
               </button>
               <button 
                 onClick={handleConfirmPayment} 
@@ -599,7 +602,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 className="flex-1 h-[var(--pos-btn-h)] bg-primary text-background font-bold rounded-xl text-lg hover:bg-primary-hover shadow-lg shadow-primary/20 flex items-center justify-center gap-2 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
               >
                 {isProcessing ? <Loader2 className="animate-spin" /> : <Check size={20} />}
-                {t('Complete Order')}
+                <span className="hidden sm:inline">{t('Complete Order')}</span>
+                <span className="sm:hidden">{t('Confirm')}</span>
               </button>
             </div>
           </>
