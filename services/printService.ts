@@ -60,7 +60,7 @@ const getEffectiveSettings = (injectedSettings?: any) => {
     // Priority 2: Legacy Key
     const legacyStr = localStorage.getItem('RESBAR_SETTINGS_STORE');
     if (legacyStr) return JSON.parse(legacyStr).data;
-  } catch (e) {
+  } catch(e) {
     console.warn("Failed to load settings from storage", e);
   }
   return {};
@@ -84,10 +84,10 @@ export const generateReceiptHTML = async (order: any, settingsOrPaperSize?: any)
 
   const paperSize = forcedPaperSize || settings.paperSize || '80mm';
 
-  console.log("🖨️ [Print] Resolving Store Info:", {
-    name: settings.counterName,
-    address: settings.counterAddress,
-    phone: settings.counterPhone
+  console.log("🖨️ [Print] Resolving Store Info:", { 
+    name: settings.counterName, 
+    address: settings.counterAddress, 
+    phone: settings.counterPhone 
   });
 
   const subtotal = order.subtotal || order.total_amount || order.total || 0;
@@ -385,15 +385,15 @@ const printViaRawBT = (html: string) => {
  */
 export const printOrderReceipt = async (order: any, settings?: any) => {
   if (!order) return;
-
+  
   // Use passed settings or fetch effective settings
   const effSettings = getEffectiveSettings(settings);
-
+  
   const html = await generateReceiptHTML(order, effSettings);
   const printMethod = effSettings.printMethod || 'browser';
 
   if (isSandboxed() && printMethod !== 'rawbt') return;
-
+  
   if (printMethod === 'rawbt') printViaRawBT(html);
   else printViaIframe(html);
 };

@@ -69,26 +69,24 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
 
   // --- REALTIME SUBSCRIPTION FOR TABLES ---
   useEffect(() => {
-    if (!user || !isOnline) return;
+    // FIX: Strict check on user.id to prevent spurious re-subscriptions
+    if (!user?.id || !isOnline) return;
 
-    console.log("[Realtime] Subscribing to 'tables' changes...");
     const channel = supabase
       .channel('realtime-tables')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'tables' },
         async (payload) => {
-          console.log('[Realtime] Table Change Received:', payload);
-          
+          // Note: This logic only updates local DB from server changes.
+          // It does NOT queue syncs back to server (preventing loops).
           try {
             if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-              // Upsert local DB. payload.new contains the full record.
               const newTableData = payload.new;
               if (newTableData && newTableData.id) {
                  await db.pos_tables.put(newTableData);
               }
             } else if (payload.eventType === 'DELETE') {
-              // Delete from local DB. payload.old contains the ID (if Replica Identity is set correctly).
               const deletedId = payload.old?.id;
               if (deletedId) {
                  await db.pos_tables.delete(deletedId);
@@ -101,14 +99,15 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
       )
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
-           console.log("[Realtime] Connected to table updates.");
+           console.log("[Realtime] subscribe once: 'tables'");
         }
       });
 
+    // FIX: Cleanup function to unsubscribe
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, isOnline]);
+  }, [user?.id, isOnline]);
 
   // Reconcile pending queue items with visible orders
   const orders = useMemo(() => {
@@ -331,23 +330,14 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
   };
 
   const refreshOrdersForDashboard = async () => {
-      // Strategy:
-      // 1. Pull 'Operational' orders (Pending, Cooking, Ready). 
-      //    Use a safe default range (e.g., last 30 days) instead of undefined to satisfy guard.
-      // 2. Pull 'Completed/Cancelled' orders for TODAY only.
-      
       const now = new Date();
       const nowISO = now.toISOString();
-      
-      // Default range for Active Orders (Catch-all for recent active orders)
       const past30Days = new Date(now);
       past30Days.setDate(past30Days.getDate() - 30);
-      
       const todayStart = new Date(now);
       todayStart.setHours(0,0,0,0);
       const todayISO = todayStart.toISOString();
 
-      // EXECUTE SEQUENTIALLY to avoid Mutex lock conflict
       await pullOrdersRange({ 
           fromISO: past30Days.toISOString(), 
           toISO: nowISO, 
@@ -365,9 +355,8 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
       await pullOrdersRange({ fromISO, toISO, statusFilter: ['Completed', 'Cancelled'] });
   };
 
-  // Legacy refreshData (Full Reload) - Keeping for initial load or manual full sync
+  // Legacy refreshData (Full Reload)
   const refreshData = useCallback(async () => {
-    // Throttle refresh triggers (2 seconds)
     const now = Date.now();
     if (now - lastRefreshTime.current < 2000) return;
     lastRefreshTime.current = now;
@@ -384,7 +373,6 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
     try {
       await processQueue(true);
 
-      // Refresh Menu & Tables (Small datasets, full refresh ok)
       const [menuRes, tablesRes] = await Promise.all([
         supabase.from('menu_items').select('*').order('name'),
         supabase.from('tables').select('*')
@@ -402,7 +390,6 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
         }
       });
 
-      // Refresh Dashboard Orders
       await refreshOrdersForDashboard();
       
     } catch (e: any) { 
@@ -437,7 +424,6 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
     
     const total = rawItems.reduce((s: number, i: any) => s + (i.price * i.quantity), 0);
     
-    // Correct Staff Name Logic
     const staffDisplayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || currentStaffEmail;
     
     const metadata = { 
@@ -455,7 +441,7 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
         updated_at: now,
         version: 1,
         is_offline: true,
-        sync_status: 'pending', // Mark as pending
+        sync_status: 'pending', 
         note: data.note || ''
     };
 
@@ -562,12 +548,11 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
       localUpdates.total = total;
       
       await addToQueue('update_order_items', { order_id: orderId, items: finalItems });
-      delete localUpdates.order_items; // Handled by separate queue item
+      delete localUpdates.order_items; 
     } else {
         await db.orders.update(orderId, localUpdates);
     }
 
-    // Handover Updates: send remaining top-level fields (like 'note', 'status', etc.)
     const { items, order_items, table, time, staff, total, sync_status, ...handoverUpdates } = localUpdates;
     
     if (Object.keys(handoverUpdates).length > 0) {
@@ -587,7 +572,6 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
         throw new Error("Order not found");
     }
 
-    // Recalculate totals if discount provided
     let finalTotal = order.total || 0;
     if (discountInfo) {
       finalTotal = Math.max(0, finalTotal - discountInfo.amount);
@@ -605,7 +589,7 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
       discount_type: discountInfo?.type,
       discount_value: discountInfo?.value,
       total_amount: finalTotal,
-      subtotal_amount: order.total || 0, // Canonical Field
+      subtotal_amount: order.total || 0, 
       staff_name: paymentStaffName,
       staff: paymentStaffName, 
       updated_at: new Date().toISOString(),
@@ -635,6 +619,12 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
   const updateTableStatus = async (tableId: string, status: string) => {};
 
   const saveTableLayout = async (newTables: TableData[]) => {
+    // FIX: Guard against empty tables causing unintentional wipe, especially during race conditions on login
+    if (!newTables || newTables.length === 0) {
+        console.warn("skip enqueue table_layout_sync on init (empty table list)");
+        return;
+    }
+
     await ensureDb();
     // 1. Update local IndexedDB
     await db.transaction('rw', db.pos_tables, async () => {
@@ -644,11 +634,8 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
     });
 
     // 2. Queue for Sync to Server
-    // We send the full list. Server logic should upsert these. 
-    // Ideally, server should also delete tables not in this list, but upsert is safe start.
+    console.log("Queueing table_layout_sync");
     await addToQueue('table_layout_sync', { tables: newTables });
-    
-    console.log(`[TABLE_LAYOUT] Saved ${newTables.length} tables locally & queued for sync.`);
   };
 
   const deleteTable = async (tableId: string) => {
@@ -663,9 +650,7 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
 
   const addMenuItem = async (item: Partial<MenuItem>) => {
   await ensureDb();
-  // local primary key (anh có thể giữ LOCAL_..., hoặc sau đổi sang integer)
   const localId = `LOCAL_${Date.now()}`;
-  // ✅ uid phải là UUID hợp lệ để upsert server
   const uid = crypto.randomUUID();
   const newItem: any = {
     ...item,
@@ -674,7 +659,6 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
     sync_status: 'pending',
   };
   await db.menu_items.add(newItem);
-  // ✅ luôn enqueue kèm local_id để reconcile
   await addToQueue('menu_upsert', { local_id: localId, payload: newItem });
 };
 
@@ -693,13 +677,11 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
 
 
   const getReportOrders = async (range: { from: string, to: string }, opts?: { limit?: number }) => {
-    // Helper to filter orders by time range (Updated At)
     const isInRange = (o: any) => {
         const ts = o.updated_at || o.created_at || '';
         return ts >= range.from && ts <= range.to;
     };
 
-    // Helper: Local Data Fetch (DRY)
     const fetchLocalData = async () => {
         const local = await db.orders.where('status').anyOf('Completed', 'Cancelled').toArray();
         const filtered = local.filter(isInRange);
@@ -715,18 +697,11 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
         return enriched as Order[];
     };
 
-    // 2. Offline Logic
     if (!navigator.onLine) {
       return fetchLocalData();
     }
 
-    // 3. Online Logic (Supabase + Local Merge)
     try {
-      // 3a. Flush Queue First (Attempt)
-      // await processQueue(false).catch(e => console.warn("Queue flush warning:", e));
-
-      // 3b. Query Supabase
-      // NOTE: Using 'updated_at' for revenue reports as requested
       let query = supabase.from('orders').select('*, order_items(*)')
         .in('status', ['Completed', 'Cancelled'])
         .gte('updated_at', range.from) 
@@ -749,8 +724,6 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
           items: o.order_items 
       })) as Order[];
 
-      // 3c. Merge with Local Unsynced/Pending Orders
-      // This bridges the gap between "Dashboard (Local)" and "Reports (Server)" for just-paid items.
       const localPending = await db.orders
         .where('status').anyOf('Completed', 'Cancelled')
         .filter(o => o.sync_status !== 'synced' && isInRange(o))
@@ -758,10 +731,8 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
 
       const mergedMap = new Map<string, Order>();
       
-      // Add server orders first
       serverOrders.forEach(o => mergedMap.set(o.id, o));
       
-      // Overlay local pending orders (they are more recent/accurate for this device)
       for (const o of localPending) {
           // Local filtering for Staff
           if (role === 'staff' && user && o.staff_name !== user.email && o.user_id !== user.id) continue;
@@ -850,8 +821,6 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
     if (!sourceOrder) throw new Error("Source order not found");
 
     let targetOrder = null;
-    // Special handling: if target is Takeaway, do NOT merge into existing orders (create new one always)
-    // Otherwise, try to find existing order on target table
     if (targetTableId !== 'Takeaway') {
         targetOrder = orders.find(o => String(o.table_id) === String(targetTableId) && OPERATIONAL_STATUSES.includes(o.status));
     }
@@ -859,7 +828,6 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
     let targetOrderId = targetOrder?.id;
     const now = new Date().toISOString();
 
-    // Prepare staff/user metadata correctly
     const staffName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || currentStaffEmail;
     const userId = user?.id;
 
@@ -954,9 +922,8 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
 };
 
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <DBProvider>
-    <DataProviderInner>{children}</DataProviderInner>
-  </DBProvider>
+  // FIX 1: Remove DBProvider to prevent double init (App.tsx handles it)
+  <DataProviderInner>{children}</DataProviderInner>
 );
 
 export const useData = () => {

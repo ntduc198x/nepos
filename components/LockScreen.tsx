@@ -218,7 +218,7 @@ export const LockScreen: React.FC = () => {
       {/* Footer Branding */}
       <div className="absolute bottom-8 flex items-center gap-2 text-white/20">
          <ChefHat size={16} />
-         <span className="text-xs font-black uppercase tracking-[0.2em]">NEPOS System</span>
+         <span className="text-xs font-black uppercase tracking-[0.2em]">ResBar POS System</span>
       </div>
 
       <style>{`

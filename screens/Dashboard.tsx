@@ -56,6 +56,8 @@ export const Dashboard: React.FC = () => {
   
   // State to store Admin IDs for filtering Manager view
   const [adminIds, setAdminIds] = useState<Set<string>>(new Set());
+  // Flag to prevent rendering stats before RBAC rules are fully loaded (Prevent Flicker)
+  const [isRbacReady, setIsRbacReady] = useState(userRole !== 'manager');
 
   // Trigger Dashboard specific refresh on mount
   useEffect(() => {
@@ -65,12 +67,16 @@ export const Dashboard: React.FC = () => {
   // Fetch Admin IDs if current user is Manager
   useEffect(() => {
     if (userRole === 'manager') {
+      setIsRbacReady(false); // Lock render to prevent flickering Admin data
       supabase.from('users').select('id').eq('role', 'admin')
         .then(({ data }) => {
           if (data) {
             setAdminIds(new Set(data.map(u => u.id)));
           }
+          setIsRbacReady(true); // Unlock render once Admin IDs are known
         });
+    } else {
+      setIsRbacReady(true);
     }
   }, [userRole]);
   
@@ -85,7 +91,8 @@ export const Dashboard: React.FC = () => {
   }, []); 
 
   // 2. Operational Stream (From ALL orders)
-  // Rule: Show ALL Active/Pending orders regardless of date (Operational requirement)
+  // Rule: Show Active/Pending orders.
+  // Requirement: Operational orders must be visible to ALL roles (Staff, Manager, Admin).
   const operationalOrders = useMemo(() => {
     return orders.filter(o => isOrderActive(o.status));
   }, [orders]);
@@ -114,6 +121,9 @@ export const Dashboard: React.FC = () => {
 
     // Manager: View All EXCEPT Admin orders
     if (userRole === 'manager') {
+        // Critical: If RBAC is not ready, return empty to avoid flash of Admin data
+        if (!isRbacReady) return [];
+
         return dailyHistory.filter(o => {
             // If created by an Admin (based on user_id), exclude it
             if (o.user_id && adminIds.has(o.user_id)) return false;
@@ -142,7 +152,7 @@ export const Dashboard: React.FC = () => {
       
       return false;
     });
-  }, [orders, userRole, user, dayStart, dayEnd, adminIds]);
+  }, [orders, userRole, user, dayStart, dayEnd, adminIds, isRbacReady]);
 
   // 4. Combined Source for Detail View lookup
   const allAccessibleOrders = useMemo(() => {

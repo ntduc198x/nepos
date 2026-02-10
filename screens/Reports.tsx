@@ -341,9 +341,9 @@ export const Reports: React.FC = () => {
                ))}
             </div>
             <div className="flex gap-2 items-center bg-surface border border-border rounded-xl px-2 shadow-sm">
-                <Calendar size={16} className="text-secondary ml-1"/>
+                <Calendar size={16} className="text-secondary dark:text-primary ml-1"/>
                 <input type="date" value={fromDate} onChange={e => { setFromDate(e.target.value); setDateRange('custom'); }} className="bg-transparent border-none text-xs font-bold text-text-main outline-none py-2 w-24" />
-                <ArrowRight size={12} className="text-secondary"/>
+                <ArrowRight size={12} className="text-secondary dark:text-text-main"/>
                 <input type="date" value={toDate} onChange={e => { setToDate(e.target.value); setDateRange('custom'); }} className="bg-transparent border-none text-xs font-bold text-text-main outline-none py-2 w-24" />
             </div>
          </div>
