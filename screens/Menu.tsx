@@ -90,13 +90,13 @@ const ActiveOrdersContent = ({ activeOrders, tables, onSelect, t, formatPrice, v
           </div>
 
           <div className="flex items-center gap-2">
-            {isSelected && isActive && (
+            {isActive && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   onRequestCancel(order);
                 }}
-                className="p-1.5 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all animate-in fade-in zoom-in duration-200"
+                className="opacity-0 group-hover:opacity-100 p-1 text-secondary hover:text-red-500 hover:bg-red-500/10 rounded transition-all"
                 title={t('Cancel Order')}
               >
                 <Trash2 size={14} />
@@ -1069,9 +1069,9 @@ export const Menu: React.FC = () => {
                         </div>
                       </div>
                       <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border uppercase ${viewingOrder.status === 'Ready' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' :
-                          viewingOrder.status === 'Completed' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :
-                            viewingOrder.status === 'Cancelled' ? 'bg-red-500/10 text-red-500 border-red-500/20' :
-                              'bg-amber-500/10 text-amber-500 border-amber-500/10'
+                        viewingOrder.status === 'Completed' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :
+                          viewingOrder.status === 'Cancelled' ? 'bg-red-500/10 text-red-500 border-red-500/20' :
+                            'bg-amber-500/10 text-amber-500 border-amber-500/10'
                         }`}>{t(viewingOrder.status)}</span>
                     </div>
                   </div>
