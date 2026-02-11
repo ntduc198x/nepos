@@ -100,7 +100,7 @@ export const FloorPlan: React.FC = () => {
         const next = new Map(prev);
         next.set(e.pointerId, { x: e.clientX, y: e.clientY });
         if (next.size === 2) {
-            const points = Array.from(next.values());
+            const points = Array.from(next.values()) as { x: number; y: number }[];
             initialPinchDistance.current = getDistance(points[0], points[1]);
             initialScale.current = transform.scale;
         }
@@ -129,7 +129,7 @@ export const FloorPlan: React.FC = () => {
         } else if (next.size === 2 && initialPinchDistance.current) {
             // ZOOM ENABLED
             isDragging.current = true;
-            const points = Array.from(next.values());
+            const points = Array.from(next.values()) as { x: number; y: number }[];
             const currentDist = getDistance(points[0], points[1]);
             const scaleFactor = currentDist / initialPinchDistance.current;
             const nextScale = Math.min(Math.max(MIN_ZOOM, initialScale.current * scaleFactor), MAX_ZOOM);
@@ -305,65 +305,28 @@ export const FloorPlan: React.FC = () => {
     document.addEventListener('mouseup', onMouseUp);
   };
 
-  const handleMouseDownResize = (e: React.MouseEvent, table: TableData, corner: 'se' | 'sw' | 'ne' | 'nw') => {
+  // Simplified Resize Handler: Only Bottom-Right Corner (SE)
+  const handleMouseDownResize = (e: React.MouseEvent, table: TableData) => {
       if (!isEditMode) return;
       e.stopPropagation();
       e.preventDefault();
       
-      const container = containerRef.current;
-      if (!container) return;
-
-      const containerRect = container.getBoundingClientRect();
       const startX = e.clientX;
       const startY = e.clientY;
       const initialWidth = table.width || 100;
       const initialHeight = table.height || 100;
-      const initialX = table.x || 0;
-      const initialY = table.y || 0;
 
       const onMouseMove = (ev: MouseEvent) => {
           const deltaX = ev.clientX - startX;
           const deltaY = ev.clientY - startY;
 
-          let newWidth = initialWidth;
-          let newHeight = initialHeight;
-          let newX = initialX;
-          let newY = initialY;
-
-          // Tính toán dựa trên góc resize
-          if (corner === 'se') {
-              // Southeast: tăng width/height, giữ nguyên position
-              newWidth = Math.max(60, initialWidth + deltaX);
-              newHeight = Math.max(60, initialHeight + deltaY);
-          } else if (corner === 'sw') {
-              // Southwest: tăng height, thay đổi x và width
-              const widthDelta = -deltaX;
-              newWidth = Math.max(60, initialWidth + widthDelta);
-              const deltaXPercent = (-deltaX / containerRect.width) * 100;
-              newX = Math.max(0, Math.min(100, initialX + deltaXPercent));
-              newHeight = Math.max(60, initialHeight + deltaY);
-          } else if (corner === 'ne') {
-              // Northeast: tăng width, thay đổi y và height
-              newWidth = Math.max(60, initialWidth + deltaX);
-              const heightDelta = -deltaY;
-              newHeight = Math.max(60, initialHeight + heightDelta);
-              const deltaYPercent = (-deltaY / containerRect.height) * 100;
-              newY = Math.max(0, Math.min(100, initialY + deltaYPercent));
-          } else if (corner === 'nw') {
-              // Northwest: thay đổi cả x, y, width, height
-              const widthDelta = -deltaX;
-              const heightDelta = -deltaY;
-              newWidth = Math.max(60, initialWidth + widthDelta);
-              newHeight = Math.max(60, initialHeight + heightDelta);
-              const deltaXPercent = (-deltaX / containerRect.width) * 100;
-              const deltaYPercent = (-deltaY / containerRect.height) * 100;
-              newX = Math.max(0, Math.min(100, initialX + deltaXPercent));
-              newY = Math.max(0, Math.min(100, initialY + deltaYPercent));
-          }
+          // Only change width and height based on delta from SE corner
+          const newWidth = Math.max(60, initialWidth + deltaX);
+          const newHeight = Math.max(60, initialHeight + deltaY);
 
           setLocalTables(prev => prev.map(t => 
               t.id === table.id 
-                  ? { ...t, width: newWidth, height: newHeight, x: newX, y: newY } 
+                  ? { ...t, width: newWidth, height: newHeight } 
                   : t
           ));
           setHasUnsavedChanges(true);
@@ -382,10 +345,31 @@ export const FloorPlan: React.FC = () => {
   
   // --- ORDER LOGIC WRAPPERS ---
   const handleUpdateItemQty = async (idx: number, delta: number, currentList: OrderItem[]) => {
+      const active = (orders || []).find(o => String(o.table_id) === String(selectedTableId) && ['Pending', 'Cooking', 'Ready'].includes(o.status));
+      if (!active) return;
+
       const next = [...currentList];
       const newQty = (next[idx].quantity || 0) + delta;
       
       if (newQty <= 0) {
+          // RESET FLOW: If this is the last item, remove => reset table
+          if (next.length <= 1) {
+              performCancelOrder(active, () => {
+                  setSelectedTableId(null);
+                  setModifiedItems(null);
+              }, {
+                  confirm: {
+                      title: t('Confirm Reset Order'),
+                      message: t('Last item removal warning'),
+                      confirmText: t('Confirm'),
+                      isDanger: true
+                  },
+                  successMessage: t('Table Reset Success'),
+                  details: 'Auto-reset via last item removal'
+              });
+              return;
+          }
+
           // SECURITY GUARD: Item removal from active order (giống Menu)
           const guardRes = await guardSensitive('cancel_item', () => {
               next.splice(idx, 1);
@@ -865,35 +849,24 @@ export const FloorPlan: React.FC = () => {
                 >
                   <span className="text-lg font-black tracking-tight">{table.label}</span>
                   
-                  {/* Resize Handles - chỉ hiện khi đang edit bàn này */}
+                  {/* SIMPLIFIED RESIZE HANDLE - Single Bottom Right Corner */}
                   {isEditMode && editingTableId === table.id && (
-                    <>
-                      {/* Southeast handle */}
-                      <div 
-                        onMouseDown={(e) => handleMouseDownResize(e, table, 'se')}
-                        className="absolute -bottom-1 -right-1 w-4 h-4 bg-primary rounded-full border-2 border-background cursor-se-resize hover:scale-125 transition-transform z-10 shadow-lg"
-                      />
-                      {/* Southwest handle */}
-                      <div 
-                        onMouseDown={(e) => handleMouseDownResize(e, table, 'sw')}
-                        className="absolute -bottom-1 -left-1 w-4 h-4 bg-primary rounded-full border-2 border-background cursor-sw-resize hover:scale-125 transition-transform z-10 shadow-lg"
-                      />
-                      {/* Northeast handle */}
-                      <div 
-                        onMouseDown={(e) => handleMouseDownResize(e, table, 'ne')}
-                        className="absolute -top-1 -right-1 w-4 h-4 bg-primary rounded-full border-2 border-background cursor-ne-resize hover:scale-125 transition-transform z-10 shadow-lg"
-                      />
-                      {/* Northwest handle */}
-                      <div 
-                        onMouseDown={(e) => handleMouseDownResize(e, table, 'nw')}
-                        className="absolute -top-1 -left-1 w-4 h-4 bg-primary rounded-full border-2 border-background cursor-nw-resize hover:scale-125 transition-transform z-10 shadow-lg"
-                      />
-                    </>
+                    <div 
+                        onMouseDown={(e) => handleMouseDownResize(e, table)}
+                        className="absolute bottom-1 right-1 cursor-se-resize text-primary p-1 bg-surface rounded-full shadow-md z-50 hover:scale-110 transition-transform border border-border"
+                    >
+                        <Maximize2 size={14} />
+                    </div>
                   )}
                   
                   {/* Editing Controls */}
                   {isEditing && (
-                    <div className="absolute z-[110] top-full mt-2 left-1/2 -translate-x-1/2 w-[220px] bg-surface border border-border rounded-xl shadow-2xl p-3 animate-in fade-in zoom-in-95 duration-200" onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
+                    <div 
+                      className="absolute z-[110] top-full mt-2 left-1/2 -translate-x-1/2 w-[220px] bg-surface border border-border rounded-xl shadow-2xl p-3 animate-in fade-in zoom-in-95 duration-200" 
+                      onPointerDown={e => e.stopPropagation()} 
+                      onClick={e => e.stopPropagation()}
+                      onMouseDown={e => e.stopPropagation()}
+                    >
                       <div className="flex items-center gap-2 mb-3">
                         <div className="relative flex-1 group">
                           <Type size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-secondary" />

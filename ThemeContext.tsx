@@ -298,7 +298,7 @@ const translations: Record<Language, Record<string, string>> = {
     'packs': 'packs',
     'pcs': 'pcs',
 
-    // Payment Modal
+    // Payment Modal & Split Bill
     'Confirm Payment': 'Confirm Payment',
     'Total to Pay': 'Total to Pay',
     'Order #': 'Order #',
@@ -311,6 +311,44 @@ const translations: Record<Language, Record<string, string>> = {
     'Bank': 'Bank',
     'Memo': 'Memo',
     'Bank settings required': 'Bank settings required in Settings',
+    'Cannot apply discount to partially paid order': 'Cannot apply discount to partially paid order',
+    'Giảm giá đang tắt trong Cài đặt.': 'Discount is disabled in Settings.',
+    'Không có quyền thực hiện giảm giá.': 'Permission denied: Cannot apply discount.',
+    'Sai PIN.': 'Wrong PIN.',
+    'Giới hạn giảm giá tối đa là': 'Max discount limit is',
+    'Giảm giá không thể quá 100%': 'Discount cannot exceed 100%',
+    'Giảm giá không thể lớn hơn tổng tiền': 'Discount cannot exceed total amount',
+    'Apply Discount': 'Apply Discount',
+    'Discount Percentage': 'Discount Percentage',
+    'Discount Amount': 'Discount Amount',
+    'New Total:': 'New Total:',
+    'Confirm Discount': 'Confirm Discount',
+    'Cannot split a partially paid order': 'Cannot split a partially paid order',
+    'Tính năng tách bill đang tắt.': 'Split Bill feature is disabled.',
+    'Không có quyền thực hiện tách bill.': 'Permission denied: Cannot split bill.',
+    'Split Bill Items': 'Split Bill Items',
+    'Select items to move to a new bill.': 'Select items to move to a new bill.',
+    'New Bill Subtotal': 'New Bill Subtotal',
+    'Next: Select Table': 'Next: Select Table',
+    'Select New Table': 'Select New Table',
+    'Bill Split Successful!': 'Bill Split Successful!',
+    'Items moved to new order.': 'Items moved to new order.',
+    'Choose where to move the split items:': 'Choose where to move the split items:',
+    'Failed to split order: ': 'Failed to split order: ',
+    'Paid:': 'Paid:',
+    'Remaining to Pay': 'Remaining to Pay',
+    'Edit Discount': 'Edit Discount',
+    'Split Bill': 'Split Bill',
+    'Max allowed:': 'Max allowed:',
+    'Empty': 'Empty',
+    'Cannot split order with single item': 'Cannot split order with single item',
+    'Order total must be greater than 0': 'Order total must be greater than 0',
+    'Cannot remove last item. Cancel order instead.': 'Cannot remove last item. Cancel order instead.',
+    
+    // Reset Table Flow
+    'Confirm Reset Order': 'Confirm Reset Order?',
+    'Last item removal warning': 'Removing the last item will cancel the order and reset the table. Continue?',
+    'Table Reset Success': 'Last item removed. Table has been reset.',
 
     // --- SETTINGS TRANSLATIONS ---
     
@@ -452,7 +490,6 @@ const translations: Record<Language, Record<string, string>> = {
     'Ngăn chặn giảm giá tuỳ tiện': 'Prevent unauthorized discounts',
     'Dùng để duyệt các thao tác nhạy cảm': 'Used to approve sensitive actions',
     'Cấu hình Manager (Manager Config)': 'Manager Configuration',
-    // Duplicates removed from here
     'Giao diện & Trải nghiệm': 'Interface & Experience',
     'Tùy chỉnh tốc độ thao tác, hiển thị và phím tắt': 'Customize speed, display and shortcuts',
     'Giao diện & Ngôn ngữ': 'UI & Language',
@@ -617,6 +654,19 @@ const translations: Record<Language, Record<string, string>> = {
     // Renamed App Keys
     'Nepos System': 'Hệ Thống Quản Lý NEPOS',
     'Welcome to Nepos': 'Chào mừng đến với Nepos',
+    'Register text': 'Đăng ký để bắt đầu quản lý nhà hàng.',
+    'Login text': 'Vui lòng nhập thông tin để đăng nhập.',
+    'Full Name': 'Full Name',
+    'Email Address': 'Email Address',
+    'Password': 'Password',
+    'Confirm Password': 'Confirm Password',
+    'Remember me': 'Remember me',
+    'Forgot password?': 'Forgot password?',
+    'Create Account': 'Create Account',
+    'Already have an account?': 'Already have an account?',
+    'Don\'t have an account?': 'Don\'t have an account?',
+    'Sign In': 'Sign In',
+    'Create an Account': 'Create an Account',
   },
 
   vi: {
@@ -652,7 +702,7 @@ const translations: Record<Language, Record<string, string>> = {
     'custom': 'Tùy chỉnh',
     'From Date': 'Từ ngày',
     'To Date': 'Đến ngày',
-    'Revenue': 'Doanh thu',
+    // 'Revenue': 'Doanh thu', // Removed Duplicate
     'Total Orders': 'Tổng đơn hàng',
     'Search ID or Table...': 'Tìm ID hoặc Bàn...',
     'All Status': 'Tất cả trạng thái',
@@ -667,11 +717,11 @@ const translations: Record<Language, Record<string, string>> = {
     'Hourly': 'Doanh thu theo giờ',
     'Daily': 'Doanh thu theo ngày',
     'Orders': 'Số đơn',
-    'Amount': 'Doanh thu',
+    // 'Amount': 'Doanh thu', // Removed Duplicate
     'Payments': 'Thanh toán',
     '% Revenue': 'Tỷ trọng %',
     'Method': 'Phương thức',
-    'Status': 'Trạng thái',
+    // 'Status': 'Trạng thái', // Removed Duplicate
     'Unpaid': 'Chưa thanh toán',
     'overview': 'Tổng quan',
     'Trends': 'Xu hướng',
@@ -719,6 +769,7 @@ const translations: Record<Language, Record<string, string>> = {
     'Select an Order': 'Chọn một đơn hàng',
     'Personal View': 'Cá nhân',
     'Global View': 'Toàn cục',
+    // 'Search ID or Table...': 'Tìm ID hoặc Bàn...', // Removed Duplicate
 
     // Menu
     'Manage items': 'Quản lý món và kho thủ công',
@@ -727,7 +778,7 @@ const translations: Record<Language, Record<string, string>> = {
     'All': 'Tất cả',
     'Coffee': 'Cà phê',
     'Non Coffee': 'Không cà phê',
-    'Matcha': 'Matcha/Trà',
+    'Matcha': 'Matcha',
     'Food': 'Đồ ăn',
     'Current Order': 'Đơn hiện tại',
     'Subtotal': 'Tạm tính',
@@ -825,7 +876,7 @@ const translations: Record<Language, Record<string, string>> = {
     'packs': 'gói',
     'pcs': 'cái',
 
-    // Payment Modal
+    // Payment Modal & Split Bill
     'Confirm Payment': 'Xác nhận thanh toán',
     'Total to Pay': 'Tổng tiền thanh toán',
     'Order #': 'Đơn hàng #',
@@ -838,6 +889,44 @@ const translations: Record<Language, Record<string, string>> = {
     'Bank': 'Ngân hàng',
     'Memo': 'Nội dung',
     'Bank settings required': 'Vui lòng cấu hình tài khoản trong Cài đặt',
+    'Cannot apply discount to partially paid order': 'Không thể giảm giá cho đơn đã thanh toán một phần',
+    'Giảm giá đang tắt trong Cài đặt.': 'Tính năng giảm giá đang tắt trong Cài đặt.',
+    'Không có quyền thực hiện giảm giá.': 'Bạn không có quyền thực hiện giảm giá.',
+    'Sai PIN.': 'Sai mã PIN.',
+    'Giới hạn giảm giá tối đa là': 'Giới hạn giảm giá tối đa là',
+    'Giảm giá không thể quá 100%': 'Giảm giá không thể quá 100%',
+    'Giảm giá không thể lớn hơn tổng tiền': 'Giảm giá không thể lớn hơn tổng tiền',
+    'Apply Discount': 'Áp dụng giảm giá',
+    'Discount Percentage': 'Phần trăm giảm giá',
+    'Discount Amount': 'Số tiền giảm giá',
+    'New Total:': 'Thành tiền mới:',
+    'Confirm Discount': 'Xác nhận giảm giá',
+    'Cannot split a partially paid order': 'Không thể tách đơn đã thanh toán một phần',
+    'Tính năng tách bill đang tắt.': 'Tính năng tách bill đang tắt.',
+    'Không có quyền thực hiện tách bill.': 'Bạn không có quyền tách bill.',
+    'Split Bill Items': 'Chọn món cần tách',
+    'Select items to move to a new bill.': 'Chọn các món để chuyển sang đơn mới.',
+    'New Bill Subtotal': 'Tổng tiền đơn mới',
+    'Next: Select Table': 'Tiếp tục: Chọn bàn',
+    'Select New Table': 'Chọn bàn đích',
+    'Bill Split Successful!': 'Tách đơn thành công!',
+    'Items moved to new order.': 'Items moved to new order.',
+    'Choose where to move the split items:': 'Chọn nơi chuyển các món đã tách đến:',
+    'Failed to split order: ': 'Lỗi tách đơn: ',
+    'Paid:': 'Đã trả:',
+    'Remaining to Pay': 'Còn lại',
+    'Edit Discount': 'Sửa giảm giá',
+    'Split Bill': 'Tách Bill',
+    'Max allowed:': 'Tối đa:',
+    'Empty': 'Trống',
+    'Cannot split order with single item': 'Không thể tách đơn chỉ có 1 món',
+    'Order total must be greater than 0': 'Tổng tiền đơn hàng phải lớn hơn 0',
+    'Cannot remove last item. Cancel order instead.': 'Không thể xóa món cuối cùng. Vui lòng hủy đơn hàng.',
+    
+    // Reset Table Flow
+    'Confirm Reset Order': 'Xác nhận hủy đơn?',
+    'Last item removal warning': 'Xóa món cuối cùng sẽ hủy toàn bộ đơn hàng và trả bàn. Tiếp tục?',
+    'Table Reset Success': 'Đã xóa món cuối. Bàn đã được reset.',
 
     // --- SETTINGS.TSX TEXT (VI Source -> VI Target: Keep as is) ---
     // Section: Permissions & Roles
@@ -997,7 +1086,6 @@ const translations: Record<Language, Record<string, string>> = {
     'Ngăn chặn giảm giá tuỳ tiện': 'Ngăn chặn giảm giá tuỳ tiện',
     'Dùng để duyệt các thao tác nhạy cảm': 'Dùng để duyệt các thao tác nhạy cảm',
     'Cấu hình Manager (Manager Config)': 'Cấu hình Manager (Manager Config)',
-    // Duplicates removed from here
     'Giao diện & Trải nghiệm': 'Giao diện & Trải nghiệm',
     'Tùy chỉnh tốc độ thao tác, hiển thị và phím tắt': 'Tùy chỉnh tốc độ thao tác, hiển thị và phím tắt',
     'Giao diện & Ngôn ngữ': 'Giao diện & Ngôn ngữ',
@@ -1115,66 +1203,6 @@ const translations: Record<Language, Record<string, string>> = {
     'Don\'t have an account?': 'Chưa có tài khoản?',
     'Sign In': 'Đăng nhập',
     'Create an Account': 'Tạo tài khoản',
-
-    // Panels & Drawers
-    'Phím tắt hệ thống': 'Phím tắt hệ thống',
-    'Thanh toán nhanh': 'Thanh toán nhanh',
-    'Tìm kiếm món': 'Tìm kiếm món',
-    'In lại hóa đơn gần nhất': 'In lại hóa đơn gần nhất',
-    'Đóng modal / Huỷ bỏ': 'Đóng modal / Huỷ bỏ',
-    'Lưu cài đặt': 'Lưu cài đặt',
-    'Preset Nhanh': 'Preset Nhanh',
-    'Đã tuỳ chỉnh': 'Đã tuỳ chỉnh',
-    'Hoàn tác': 'Hoàn tác',
-    'Ghi đè chỉnh tay?': 'Ghi đè chỉnh tay?',
-    'Áp dụng': 'Áp dụng',
-    'Đang áp dụng': 'Đang áp dụng',
-    'Áp dụng Preset': 'Áp dụng Preset',
-    'Phân quyền nhân viên': 'Phân quyền nhân viên',
-    'Danh sách vai trò': 'Danh sách vai trò',
-    'Không có quyền': 'Không có quyền',
-    'Toàn quyền': 'Toàn quyền',
-    'quyền hạn': 'quyền hạn',
-    'Chi tiết': 'Chi tiết',
-    'Tắt': 'Tắt',
-    'Thêm vai trò mới (Coming Soon)': 'Thêm vai trò mới (Sắp ra mắt)',
-    'Dành cho Chủ quán (Owner Mode)': 'Dành cho Chủ quán (Owner Mode)',
-    'Hệ thống Online': 'Hệ thống Online',
-    'Đang Offline': 'Đang Offline',
-    'Kết nối ổn định': 'Kết nối ổn định',
-    'Dữ liệu sẽ được lưu cục bộ': 'Dữ liệu sẽ được lưu cục bộ',
-
-    // Staff Roles & Permissions
-    'Roles, Sensitive Actions and Security': 'Vai trò, Thao tác nhạy cảm và Bảo mật',
-    'Phân quyền, thao tác nhạy cảm và bảo mật': 'Phân quyền, thao tác nhạy cảm và bảo mật',
-    'Quick Roles (Presets)': 'Vai trò nhanh (Presets)',
-    'Chủ quán': 'Chủ quán',
-    'Toàn quyền truy cập và chỉnh sửa hệ thống.': 'Toàn quyền truy cập và chỉnh sửa hệ thống.',
-    'Thu ngân': 'Thu ngân',
-    'Chuyên trách thanh toán, in hóa đơn, mở két.': 'Chuyên trách thanh toán, in hóa đơn, mở két.',
-    'Phục vụ': 'Phục vụ',
-    'Chỉ được tạo đơn, thêm món, gửi bếp.': 'Chỉ được tạo đơn, thêm món, gửi bếp.',
-    'FULL ACCESS': 'TOÀN QUYỀN',
-    'PAYMENT': 'THANH TOÁN',
-    'In ấn': 'IN ẤN',
-    'Mở két': 'MỞ KÉT',
-    'ORDER': 'ORDER',
-    'Gửi bếp': 'GỬI BẾP',
-    'Customize Detailed Permissions': 'Tuỳ chỉnh quyền chi tiết',
-
-    // New POS Actions
-    'Lock POS': 'Khóa POS',
-    'Switch User': 'Đổi User',
-    
-    // Lock Screen
-    'POS Locked': 'POS Đã Khóa',
-    'Enter PIN to continue': 'Nhập PIN để tiếp tục',
-    'Unlock': 'Mở khóa',
-    'Invalid PIN': 'Sai mã PIN',
-    
-    // Renamed App Keys
-    'Nepos System': 'Hệ Thống Quản Lý NEPOS',
-    'Welcome to Nepos': 'Chào mừng đến với Nepos',
   }
 };
 

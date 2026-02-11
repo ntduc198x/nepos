@@ -6,7 +6,7 @@ import {
   ShoppingCart, Utensils, Check,
   Armchair, ShoppingBag, ChevronUp, WifiOff, Loader2, X, ArrowLeft,
   Clock, Printer, Receipt, StickyNote, Info, Save, Edit, Trash2, Settings, RefreshCw,
-  ChevronRight, CreditCard, AlertTriangle, Upload, Delete, Link as LinkIcon, Menu as MenuIcon
+  ChevronRight, CreditCard, AlertTriangle, Upload, Delete, Link as LinkIcon, Menu as MenuIcon, ChevronDown, Tag
 } from 'lucide-react';
 import { MenuItem } from '../types';
 import { useCurrency } from '../CurrencyContext';
@@ -37,8 +37,7 @@ const fileToBase64 = (file: File): Promise<string> => {
   });
 };
 
-// Subcomponent for Active Orders List
-const ActiveOrdersContent: React.FC<{
+interface ActiveOrdersContentProps {
   activeOrders: any[];
   tables: any[];
   onSelect: (order: any) => void;
@@ -46,44 +45,10 @@ const ActiveOrdersContent: React.FC<{
   formatPrice: (p: number) => string;
   viewingOrderId: string | null;
   onRequestCancel: (order: any) => void;
-}> = ({ activeOrders, tables, onSelect, t, formatPrice, viewingOrderId, onRequestCancel }) => {
-  // Resize State for Switch List (Mode B)
-  const [listHeight, setListHeight] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem("RESBAR_SWITCHLIST_HEIGHT");
-      return saved ? parseInt(saved, 10) : 120; // Changed default from 180 to 120
-    }
-    return 120;
-  });
+}
 
-  // Pointer Capture Refs
-  const isDragging = useRef(false);
-  const startY = useRef(0);
-  const startHeight = useRef(0);
-
-  const handlePointerDown = (e: React.PointerEvent) => {
-    isDragging.current = true;
-    startY.current = e.clientY;
-    startHeight.current = listHeight;
-    e.currentTarget.setPointerCapture(e.pointerId);
-  };
-
-  const handlePointerMove = (e: React.PointerEvent) => {
-    if (!isDragging.current) return;
-    const delta = e.clientY - startY.current;
-    // Bounds: Min 80px (was 160), Max ~600px
-    const newHeight = Math.min(Math.max(80, startHeight.current + delta), 600);
-    setListHeight(newHeight);
-  };
-
-  const handlePointerUp = (e: React.PointerEvent) => {
-    if (isDragging.current) {
-      isDragging.current = false;
-      e.currentTarget.releasePointerCapture(e.pointerId);
-      localStorage.setItem("RESBAR_SWITCHLIST_HEIGHT", listHeight.toString());
-    }
-  };
-
+// Subcomponent for Active Orders List
+const ActiveOrdersContent = ({ activeOrders, tables, onSelect, t, formatPrice, viewingOrderId, onRequestCancel }: ActiveOrdersContentProps) => {
   if (activeOrders.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-10 opacity-30 gap-3">
@@ -152,36 +117,9 @@ const ActiveOrdersContent: React.FC<{
     );
   };
 
-  // MODE A: Standard List (No internal scroll)
-  if (!viewingOrderId) {
-    return (
-      <div className="space-y-2">
-        {activeOrders.map(renderItem)}
-      </div>
-    );
-  }
-
-  // MODE B: Switch View (Resizable Scroll Container)
   return (
-    <div className="flex flex-col">
-      <div 
-        className="space-y-2 overflow-y-auto custom-scrollbar pr-1"
-        style={{ height: listHeight }}
-      >
-        {activeOrders.map(renderItem)}
-      </div>
-      
-      {/* Drag Handle */}
-      <div 
-        className="h-5 flex items-center justify-center cursor-ns-resize touch-none hover:bg-border/50 active:bg-border transition-colors rounded-b-lg -mb-1 mt-1"
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
-        title="Drag to resize"
-      >
-         <div className="w-10 h-1 rounded-full bg-secondary/30"></div>
-      </div>
+    <div className="space-y-2">
+      {activeOrders.map(renderItem)}
     </div>
   );
 };
@@ -252,8 +190,13 @@ export const Menu: React.FC = () => {
 
   const [isItemModalOpen, setIsItemModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
+  
+  // Custom Dropdown State for Category
+  const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
+  const [customCategory, setCustomCategory] = useState('');
+  
   const [itemForm, setItemForm] = useState({
-    name: '', price: '', category: 'Coffee', image: '', stock: '99', description: ''
+    name: '', price: '', category: '', image: '', stock: '99', description: ''
   });
 
   // Delete Confirmation State
@@ -297,6 +240,30 @@ export const Menu: React.FC = () => {
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }, [orders]);
 
+  const uniqueCategories = useMemo(() => {
+    // Get all unique categories from existing menu items, sorted alphabetically
+    const existing = Array.from(new Set((items || []).map(i => i.category).filter(Boolean)));
+    return existing.sort();
+  }, [items]);
+
+  // Helper to get default category for new items
+  const getDefaultCategory = () => {
+    return uniqueCategories.length > 0 ? uniqueCategories[0] : 'Uncategorized';
+  };
+
+  // Auto-set default category when categories are loaded
+  useEffect(() => {
+    if (!itemForm.category && uniqueCategories.length > 0) {
+      setItemForm(prev => ({ ...prev, category: getDefaultCategory() }));
+    }
+  }, [uniqueCategories]);
+
+  // Categories for Form Dropdown (Filter out 'All' if it exists, though uniqueCategories logic handles raw data)
+  const formCategories = useMemo(() => {
+    // Filter "All" out just in case, though usually not in items' category field
+    return uniqueCategories.filter(c => c !== 'All');
+  }, [uniqueCategories]);
+
   const availableTables = useMemo(() => {
     return tables.filter(table => {
       if (table.id === 'Takeaway') return false;
@@ -336,12 +303,35 @@ export const Menu: React.FC = () => {
         const next = [...base];
 
         if (idx > -1) {
-            next[idx] = { ...next[idx], quantity: (next[idx].quantity || 0) + qty };
-        } else {
+            const newQty = (next[idx].quantity || 0) + qty;
+            if (newQty <= 0) {
+                // RESET FLOW: If this is the last item, remove => reset table
+                if (next.length <= 1) {
+                    performCancelOrder(viewingOrder, () => {
+                        setViewingOrder(null);
+                        setModifiedItems(null);
+                    }, {
+                        confirm: {
+                            title: t('Confirm Reset Order'),
+                            message: t('Last item removal warning'),
+                            confirmText: t('Confirm'),
+                            isDanger: true
+                        },
+                        successMessage: t('Table Reset Success'),
+                        details: 'Auto-reset via grid decrement'
+                    });
+                    return;
+                }
+                next.splice(idx, 1);
+            } else {
+                next[idx] = { ...next[idx], quantity: newQty };
+            }
+        } else if (qty > 0) {
             next.push({
                 menu_item_id: item.id,
                 quantity: qty,
                 price: item.price,
+                snapshot_name: item.name,
                 _display_name: item.name,
                 _display_price: item.price,
                 note: ''
@@ -417,8 +407,20 @@ export const Menu: React.FC = () => {
       // Use image from form directly (it holds either Base64 or URL)
       const imageUrl = itemForm.image;
 
+      // Handle New Category Logic
+      let finalCategory = itemForm.category;
+      if (finalCategory === '__NEW__') {
+          finalCategory = customCategory.trim();
+          if (!finalCategory) {
+              showToast(t('Vui lòng nhập tên danh mục mới'), 'error');
+              setIsUploading(false);
+              return;
+          }
+      }
+
       const data = { 
         ...itemForm, 
+        category: finalCategory, // Use processed category
         image: imageUrl, 
         price: Number(itemForm.price), 
         stock: Number(itemForm.stock) 
@@ -476,6 +478,24 @@ export const Menu: React.FC = () => {
     const newQty = (next[idx].quantity || 0) + delta;
     
     if (newQty <= 0) {
+        // RESET FLOW: If this is the last item, remove => reset table
+        if (next.length <= 1) {
+            performCancelOrder(viewingOrder, () => {
+                setViewingOrder(null);
+                setModifiedItems(null);
+            }, {
+                confirm: {
+                    title: t('Confirm Reset Order'),
+                    message: t('Last item removal warning'),
+                    confirmText: t('Confirm'),
+                    isDanger: true
+                },
+                successMessage: t('Table Reset Success'),
+                details: 'Auto-reset via sidebar removal'
+            });
+            return;
+        }
+
         // SECURITY GUARD: Item removal from active order
         const guardRes = await guardSensitive('cancel_item', () => {
             next.splice(idx, 1);
@@ -800,7 +820,7 @@ export const Menu: React.FC = () => {
                  <button onClick={() => setSortConfig(prev => prev === 'name' ? 'price-asc' : prev === 'price-asc' ? 'price-desc' : 'name')} className="px-3 rounded-xl bg-surface border border-border text-secondary flex items-center gap-2 shadow-sm"><ArrowDownUp size={16} /></button>
             </div>
              <div className="flex gap-2 overflow-x-auto no-scrollbar py-1">
-                 {['All', 'Coffee', 'Non Coffee', 'Matcha', 'Food'].map(cat => (
+                 {['All', ...uniqueCategories].map(cat => (
                      <button key={cat} onClick={() => setCategoryFilter(cat)} className={`px-4 py-1.5 rounded-full font-black text-[10px] uppercase whitespace-nowrap transition-all border shadow-sm ${categoryFilter === cat ? 'bg-primary text-background border-primary' : 'bg-surface text-secondary border-border'}`}>{t(cat)}</button>
                  ))}
              </div>
@@ -821,9 +841,10 @@ export const Menu: React.FC = () => {
                     {isEditMode && isOnline && canEditMenu && (
                       <div 
                         onClick={() => {
-                          setItemForm({ name: '', price: '', category: 'Coffee', image: '', stock: '99', description: '' });
+                          setItemForm({ name: '', price: '', category: getDefaultCategory(), image: '', stock: '99', description: '' });
                           setEditingItem(null);
                           setUploadPreview(null);
+                          setCustomCategory('');
                           setIsItemModalOpen(true);
                         }}
                         className="group bg-surface border-2 border-dashed border-border rounded-2xl flex flex-col items-center justify-center gap-3 p-4 cursor-pointer hover:border-primary hover:bg-primary/5 transition-all aspect-[4/3] shadow-sm animate-in fade-in"
@@ -868,12 +889,13 @@ export const Menu: React.FC = () => {
                                             setItemForm({ 
                                               name: item.name || '', 
                                               price: (item.price ?? 0).toString(), 
-                                              category: item.category || 'Coffee', 
+                                              category: item.category || getDefaultCategory(), 
                                               image: item.image || '', 
                                               stock: (item.stock ?? 0).toString(),
                                               description: item.description || '' 
                                             });
                                             setUploadPreview(item.image || null);
+                                            setCustomCategory('');
                                             setIsItemModalOpen(true);
                                           }}
                                           className="p-2 bg-white text-black rounded-lg shadow-xl hover:scale-110 transition-transform"
@@ -1009,19 +1031,6 @@ export const Menu: React.FC = () => {
                                viewingOrder.status === 'Cancelled' ? 'bg-red-500/10 text-red-500 border-red-500/20' :
                                'bg-amber-500/10 text-amber-500 border-amber-500/10'
                             }`}>{t(viewingOrder.status)}</span>
-                         </div>
-                         
-                         <div className="bg-surface/50 border border-border rounded-xl p-1">
-                            <p className="text-[10px] font-black text-secondary uppercase px-2 py-1">{t('Switch to')}</p>
-                            <ActiveOrdersContent 
-                              activeOrders={activeOrders} 
-                              tables={tables} 
-                              onSelect={handleSelectActiveOrder}
-                              t={t} 
-                              formatPrice={formatPrice} 
-                              viewingOrderId={viewingOrder.id}
-                              onRequestCancel={handleRequestCancel}
-                            />
                          </div>
                       </div>
 
@@ -1248,10 +1257,24 @@ export const Menu: React.FC = () => {
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-secondary uppercase ml-1">{t('Category')}</label>
                     <select value={itemForm.category} onChange={e => setItemForm({...itemForm, category: e.target.value})} className="w-full bg-background border border-border rounded-xl px-4 py-3 font-bold text-text-main focus:ring-2 focus:ring-primary/50 outline-none transition-all appearance-none">
-                      {['Coffee', 'Non Coffee', 'Matcha', 'Food'].map(c => <option key={c} value={c}>{t(c)}</option>)}
+                      {formCategories.map(c => <option key={c} value={c}>{t(c)}</option>)}
+                      <option value="__NEW__">+ {t('Thêm danh mục mới')}</option>
                     </select>
                   </div>
                 </div>
+
+                {itemForm.category === '__NEW__' && (
+                    <div className="space-y-1 animate-in slide-in-from-top-2 duration-300">
+                        <label className="text-xs font-bold text-primary uppercase ml-1">{t('Tên danh mục mới')}</label>
+                        <input 
+                            value={customCategory} 
+                            onChange={e => setCustomCategory(e.target.value)} 
+                            className="w-full bg-background border border-primary/30 rounded-xl px-4 py-3 font-bold text-text-main focus:ring-2 focus:ring-primary/50 outline-none transition-all" 
+                            placeholder={t('Nhập tên danh mục...')}
+                            autoFocus
+                        />
+                    </div>
+                )}
 
                 <div className="space-y-1">
                    <label className="text-xs font-bold text-secondary uppercase ml-1">{t('Manual Stock')}</label>

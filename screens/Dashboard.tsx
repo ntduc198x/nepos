@@ -241,6 +241,24 @@ export const Dashboard: React.FC = () => {
     const newQty = (next[idx].quantity || 0) + delta;
 
     if (newQty <= 0) {
+        // RESET FLOW: If this is the last item, remove => reset table
+        if (next.length <= 1) {
+            performCancelOrder(viewingOrder, () => {
+                setSelectedOrderId(null);
+                setModifiedItems(null);
+            }, {
+                confirm: {
+                    title: t('Confirm Reset Order'),
+                    message: t('Last item removal warning'),
+                    confirmText: t('Confirm'),
+                    isDanger: true
+                },
+                successMessage: t('Table Reset Success'),
+                details: 'Auto-reset via last item removal'
+            });
+            return;
+        }
+
         const guardRes = await guardSensitive('cancel_item', () => {
             next.splice(idx, 1);
             setModifiedItems(next);

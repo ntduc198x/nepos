@@ -605,15 +605,26 @@ const DataProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
     console.log(`[CANCEL_FLOW] Start for Order ${orderId}`);
     await ensureDb();
     const id = String(orderId);
-    const updates = { 
-        status: 'Cancelled', 
-        updated_at: new Date().toISOString(),
-        sync_status: 'pending'
-    };
-    await db.orders.update(id, updates);
-    console.log(`[CANCEL_FLOW] Dexie updated Order ${id} to Cancelled`);
-    await addToQueue('update_order', { id, updates });
-    console.log(`[CANCEL_FLOW] Queued update_order for ${id}`);
+    
+    await db.transaction('rw', [db.orders, db.order_items], async () => {
+        // 2a. Update Order Status
+        const updates = { 
+            status: 'Cancelled', 
+            updated_at: new Date().toISOString(),
+            sync_status: 'pending',
+            total_amount: 0, 
+            total: 0
+        };
+        await db.orders.update(id, updates);
+        
+        // 2b. Remove items locally
+        await db.order_items.where('order_id').equals(id).delete();
+    });
+
+    // 2d. Queue Sync
+    await addToQueue('update_order', { id, updates: { status: 'Cancelled', total_amount: 0 } });
+    await addToQueue('update_order_items', { order_id: id, items: [] }); // Send empty items to clear server side if needed
+    console.log(`[CANCEL_FLOW] Cancelled Order ${id} locally and queued updates`);
   };
 
   const updateTableStatus = async (tableId: string, status: string) => {};

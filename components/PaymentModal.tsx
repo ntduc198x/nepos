@@ -63,6 +63,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     return currentOrder.items;
   }, [currentOrder]);
 
+  const totalItemCount = useMemo(() => {
+    return splitItemsList.reduce((acc, item) => acc + (item.quantity || 0), 0);
+  }, [splitItemsList]);
+
   const splitPreviewTotal = useMemo(() => {
     let total = 0;
     splitItemsList.forEach(item => {
@@ -183,6 +187,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         return;
     }
 
+    // NEW CHECK: Prevent split if total item count is 1 or less
+    if (totalItemCount <= 1) {
+        alert(t('Cannot split order with single item'));
+        return;
+    }
+
     const result = await guardSensitive('bill_split', () => {
         setView('split');
         setSplitSelection({});
@@ -231,7 +241,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         console.log(`[split_bill] success, new order: ${newOrderId}`);
     } catch (e: any) {
         console.error('[split_bill] error:', e);
-        alert('Failed to split order: ' + e.message);
+        alert(t('Failed to split order: ') + e.message);
     } finally {
         setIsSplitting(false);
     }
@@ -305,13 +315,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   </div>
                   {discountType === 'percent' && settings.maxDiscountPercent > 0 && (
                     <p className="text-[10px] text-secondary font-bold">
-                      Max allowed: {settings.maxDiscountPercent}%
+                      {t('Max allowed:')} {settings.maxDiscountPercent}%
                     </p>
                   )}
                </div>
 
                <div className="p-4 bg-primary/5 border border-primary/10 rounded-xl flex justify-between items-center">
-                  <span className="text-sm font-bold text-secondary">New Total:</span>
+                  <span className="text-sm font-bold text-secondary">{t('New Total:')}</span>
                   <span className="text-xl font-black text-primary">
                     {formatPrice(Math.max(0, originalTotal - (discountType === 'percent' 
                       ? (originalTotal * (parseFloat(discountValue)||0)) / 100 
@@ -341,7 +351,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 </div>
                 
                 <div className="flex-1 overflow-y-auto p-4 custom-scrollbar max-h-[50vh]">
-                    <p className="text-xs text-secondary mb-4 px-2">Select items to move to a new bill.</p>
+                    <p className="text-xs text-secondary mb-4 px-2">{t('Select items to move to a new bill.')}</p>
                     <div className="space-y-2">
                         {splitItemsList.map(item => {
                             const selectedQty = splitSelection[item.id] || 0;
@@ -378,7 +388,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 </div>
                 <div className="p-4 border-t border-border bg-background space-y-3">
                     <div className="flex justify-between items-center px-2">
-                        <span className="text-xs font-bold text-secondary uppercase">New Bill Subtotal</span>
+                        <span className="text-xs font-bold text-secondary uppercase">{t('New Bill Subtotal')}</span>
                         <span className="text-xl font-black text-primary">{formatPrice(splitPreviewTotal)}</span>
                     </div>
                     <button 
@@ -386,7 +396,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                         disabled={splitPreviewTotal === 0}
                         className="w-full py-3 bg-primary text-background font-bold rounded-xl hover:bg-primary-hover shadow-lg shadow-primary/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        Next: Select Table <ArrowRight size={18} />
+                        {t('Next: Select Table')} <ArrowRight size={18} />
                     </button>
                 </div>
             </>
@@ -407,13 +417,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                         <div className="size-16 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
                             <Check size={32} strokeWidth={3} />
                         </div>
-                        <h3 className="text-lg font-bold text-text-main">Bill Split Successful!</h3>
-                        <p className="text-sm text-secondary">Items moved to new order.</p>
+                        <h3 className="text-lg font-bold text-text-main">{t('Bill Split Successful!')}</h3>
+                        <p className="text-sm text-secondary">{t('Items moved to new order.')}</p>
                     </div>
                 ) : (
                     <div className="p-5 flex-1 overflow-y-auto custom-scrollbar bg-surface/50">
                         <div className="text-center mb-4">
-                            <p className="text-xs text-secondary">Choose where to move the split items:</p>
+                            <p className="text-xs text-secondary">{t('Choose where to move the split items:')}</p>
                         </div>
 
                         <div className="grid grid-cols-2 gap-3">
@@ -422,12 +432,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                                 className="col-span-2 p-4 rounded-xl border border-primary/30 bg-primary/10 flex items-center justify-center gap-2 hover:bg-primary/20 transition-all"
                             >
                                 <ShoppingBag size={20} className="text-primary"/>
-                                <span className="font-black text-primary uppercase">Takeaway / Mang về</span>
+                                <span className="font-black text-primary uppercase">{t('Takeaway')}</span>
                             </button>
 
                             {availableTables.length === 0 ? (
                                 <div className="col-span-2 py-8 text-center text-secondary text-sm border-2 border-dashed border-border rounded-xl">
-                                    No empty tables available
+                                    {t('No empty tables available')}
                                 </div>
                             ) : (
                                 availableTables.map(table => (
@@ -437,7 +447,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                                         className="p-4 rounded-xl border bg-background border-border hover:border-primary/50 flex flex-col items-center gap-1 transition-all"
                                     >
                                         <span className="font-bold text-text-main">{table.label}</span>
-                                        <span className="text-[10px] text-green-500 font-bold bg-green-500/10 px-2 py-0.5 rounded">Empty</span>
+                                        <span className="text-[10px] text-green-500 font-bold bg-green-500/10 px-2 py-0.5 rounded">{t('Empty')}</span>
                                     </button>
                                 ))
                             )}
@@ -471,7 +481,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               <div className="text-center relative space-y-1">
                 {paidAmount > 0 && (
                     <div className="mb-2 p-2 bg-emerald-500/10 rounded-lg inline-block border border-emerald-500/20">
-                        <p className="text-xs font-bold text-emerald-600">Paid: {formatPrice(paidAmount)}</p>
+                        <p className="text-xs font-bold text-emerald-600">{t('Paid:')} {formatPrice(paidAmount)}</p>
                     </div>
                 )}
 
@@ -506,8 +516,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                             <Percent size={14} /> {appliedDiscount ? t('Edit Discount') : t('Discount')}
                         </button>
                     )}
-                    {/* Updated Split Bill Logic: Show if enabled in settings */}
-                    {can('bill.split') && remainingTotal > 0 && (
+                    {/* Updated Split Bill Logic: Show if enabled in settings AND there is more than 1 item quantity */}
+                    {can('bill.split') && remainingTotal > 0 && totalItemCount > 1 && (
                         <button onClick={handleOpenSplit} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface border border-border text-xs font-bold text-secondary hover:text-primary hover:border-primary transition-all">
                             <Divide size={14} /> {t('Split Bill')}
                         </button>
@@ -577,7 +587,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                         <AlertCircle size={48} className="text-red-500/50" />
                         <div className="space-y-1">
                             <p className="font-bold text-red-500">{t('Bank settings required')}</p>
-                            <p className="text-xs text-secondary leading-relaxed">Cấu hình thông tin ngân hàng trong mục Cài đặt hệ thống để sử dụng tính năng VietQR.</p>
+                            <p className="text-xs text-secondary leading-relaxed">{t('Bank settings required')}</p>
                         </div>
                       </div>
                   )}

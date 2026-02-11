@@ -22,13 +22,26 @@ export const useOrderOperations = () => {
    * 4. `guardSensitive` opens ConfirmModal based on `meta.confirm`.
    * 5. If all pass, executes cancellation.
    */
-  const performCancelOrder = useCallback(async (order: any, onSuccess?: () => void) => {
+  const performCancelOrder = useCallback(async (order: any, onSuccess?: () => void, customOptions?: any) => {
     if (!order) {
         console.warn("[ORDER_OP] performCancelOrder called with no order");
         return;
     }
 
     console.log(`[ORDER_OP] Request cancel for Order #${order.id}`);
+
+    // Allow overriding meta config from caller (e.g. Reset Flow message)
+    const meta = {
+        tableId: order.table_id,
+        entity_type: 'order',
+        details: customOptions?.details || `Cancel Order #${order.id} Total: ${order.total_amount}`,
+        confirm: customOptions?.confirm || {
+            title: t('Xác nhận hủy đơn hàng?'),
+            message: t('Hành động này không thể hoàn tác. Dữ liệu đơn hàng sẽ bị hủy bỏ.'),
+            confirmText: t('Xác nhận hủy'),
+            isDanger: true
+        }
+    };
 
     // Call Central Guard
     // NO window.confirm here.
@@ -40,7 +53,12 @@ export const useOrderOperations = () => {
             console.log(`[ORDER_OP] cancelOrder() completed.`);
             
             // FEEDBACK STEP
-            showToast(t('Đã hủy đơn hàng thành công'), 'success');
+            if (customOptions?.successMessage) {
+                showToast(customOptions.successMessage, 'success');
+            } else {
+                showToast(t('Đã hủy đơn hàng thành công'), 'success');
+            }
+            
             if (settings.soundEffect) playBeep('success');
             
             // CLEANUP STEP
@@ -53,18 +71,7 @@ export const useOrderOperations = () => {
             if (settings.soundEffect) playBeep('error');
             throw e;
         }
-    }, { 
-        tableId: order.table_id,
-        entity_type: 'order',
-        details: `Cancel Order #${order.id} Total: ${order.total_amount}`,
-        // CONFIG FOR CONFIRM MODAL (Handled by SettingsContext)
-        confirm: {
-            title: t('Xác nhận hủy đơn hàng?'),
-            message: t('Hành động này không thể hoàn tác. Dữ liệu đơn hàng sẽ bị hủy bỏ.'),
-            confirmText: t('Xác nhận hủy'),
-            isDanger: true
-        }
-    });
+    }, meta);
 
     if (!guardRes.ok) {
         console.log(`[ORDER_OP] Action blocked or cancelled: ${guardRes.reason}`);
