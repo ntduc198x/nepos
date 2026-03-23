@@ -750,6 +750,8 @@ export const Menu: React.FC = () => {
   };
 
   const bottomNavOffset = 70 + deviceBottomInset;
+  const mobileNavSafeGap = 16; // extra clearance above bottom nav on tablet/mobile
+  const footerBottomOffset = bottomNavOffset + mobileNavSafeGap;
 
   const processedItems = useMemo(() => {
     return (items || []).filter(item =>
@@ -1013,8 +1015,8 @@ export const Menu: React.FC = () => {
 
         {/* Floating Cart Button for Mobile/Vertical Tablet */}
         <div
-          className="lg:hidden fixed left-0 right-0 p-4 z-40 pointer-events-none"
-          style={{ bottom: `calc(env(safe-area-inset-bottom, 0px) + ${bottomNavOffset}px)` }}
+          className="lg:hidden fixed left-0 right-0 p-4 z-[65] pointer-events-none"
+          style={{ bottom: `calc(env(safe-area-inset-bottom, 0px) + ${footerBottomOffset}px)` }}
         >
           <button
             onClick={() => setIsCartSheetOpen(true)}
