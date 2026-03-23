@@ -1,127 +1,94 @@
-# NEPOS System
+# NEPOS (Restaurant / Cafe POS)
 
-<div align="center">
-  <img src="https://img.shields.io/badge/React-18-blue?logo=react" alt="React" />
-  <img src="https://img.shields.io/badge/TypeScript-5.0-blue?logo=typescript" alt="TypeScript" />
-  <img src="https://img.shields.io/badge/Vite-6.0-646CFF?logo=vite" alt="Vite" />
-  <img src="https://img.shields.io/badge/Supabase-Backend-green?logo=supabase" alt="Supabase" />
-  <img src="https://img.shields.io/badge/TailwindCSS-Styling-38B2AC?logo=tailwindcss" alt="TailwindCSS" />
-  <img src="https://img.shields.io/badge/License-MIT-yellow" alt="License" />
-</div>
+NEPOS là ứng dụng POS offline-first cho quán cafe/nhà hàng, tối ưu cho tablet + desktop.
 
-<br />
+## Công nghệ chính
+- React 18 + TypeScript + Vite
+- Supabase (Auth + Postgres + Realtime)
+- Dexie (IndexedDB local) cho offline queue
+- TailwindCSS + Lucide icons
+- Recharts (màn hình báo cáo)
 
-## 📖 Introduction
+## Tính năng nổi bật
+- Quản lý bàn (FloorPlan), Menu, Dashboard vận hành
+- Checkout + in hóa đơn + QR thanh toán
+- Đồng bộ realtime order/order_items giữa nhiều thiết bị
+- Tax/Accounting theo hướng TT152 (S2a/S2c/S2d/S2e export)
+- Phân quyền Admin / Manager / Staff + PIN bảo vệ thao tác nhạy cảm
+- Offline-first: vẫn bán được khi mất mạng, tự sync khi online
 
-**NEPOS** is a modern, high-performance Point of Sale application engineered for the dynamic needs of the hospitality industry. Built with a robust **Offline-First** architecture, it ensures seamless operations even during network interruptions.
-
-This system integrates table management, inventory tracking, real-time analytics, and role-based security into a unified, intuitive interface. Designed for scalability and speed, it leverages the power of **React 18** and **Supabase**, providing a responsive experience across devices.
-
-## ✨ Key Features
-
-### 🏢 Operations & Management
-- **Interactive Floor Plan**: Visual table management with real-time status updates (Occupied, Available, Reserved).
-- **Dynamic Menu System**: Easy-to-navigate POS interface for quick order placement.
-- **Inventory Management**: Real-time stock tracking with automated deduction logic.
-- **Role-Based Access Control (RBAC)**: secure environments with distinct permissions for `Admin` and `Staff` (e.g., locking sensitive inventory actions).
-
-### 🚀 Technical Highlights
-- **Offline-First Resilience**: powered by `Dexie.js` (IndexedDB), ensuring data integrity when the connection drops and auto-syncing when online.
-- **Global Keyboard Shortcuts**: Enhanced productivity with hotkeys (e.g., `F2` for Floor Plan, `F3` for Menu).
-- **Secure Authentication**: Integrated Supabase Auth with persistent sessions.
-- **Smart Printing**: Advanced receipt generation and print preview capabilities via `printService`.
-
-### 🎨 User Experience
-- **Adaptive Theming**: Fully customizable Dark/Light modes with brightness control.
-- **Lock Screen**: Security feature to temporarily lock the terminal without logging out.
-- **Responsive Design**: Optimized layout for tablets and desktop touchscreens.
-
-## 🛠️ Architecture
-
-The application follows a **Domain-Driven Design (DDD)** approach with a strong emphasis on Separation of Concerns.
-
-```mermaid
-graph TD
-    User[User Interface] --> Contexts[React Context Providers]
-    Contexts --> Hooks[Custom Hooks]
-    Hooks --> Services[Service Layer]
-    
-    subgraph Data Layer
-      Services --> Supabase[Supabase (Cloud DB)]
-      Services --> Dexie[Dexie.js (Local DB)]
-    end
-    
-    subgraph Core Features
-      Auth[Authentication]
-      Theme[Theming Engine]
-      Print[Printing System]
-    end
+## Cấu trúc project (thực tế)
+```txt
+projects/nepos/
+├── App.tsx
+├── screens/               # Dashboard, Menu, FloorPlan, Inventory, Reports, Settings, TaxDeclaration...
+├── components/
+├── context/               # AuthContext, DataContext, NetworkContext...
+├── hooks/
+├── services/              # printService, TaxService, SettingsService...
+├── types/
+├── utils/
+├── i18n/
+├── db.ts                  # Dexie schema
+├── supabase.ts
+├── vite.config.ts
+└── package.json
 ```
 
-### Core Technologies
-- **Frontend**: React 18, TypeScript, Vite
-- **State Management**: React Context + Custom Hooks (`useAuth`, `useTheme`)
-- **Database**: Supabase (PostgreSQL) + Dexie.js (IndexedDB wrapper)
-- **Styling**: TailwindCSS + Lucide Icons
-- **Visualization**: Recharts for Analytics
-- **Utilities**: `react-to-print`, `qrcode`
-
-## 🚀 Installation & Setup
-
-### Prerequisites
-- Node.js (v18 or higher)
-- npm or yarn
-
-### 1. Clone the Repository
+## Chạy local
 ```bash
-git clone https://github.com/your-username/nepos.git
-cd nepos
-```
-
-### 2. Install Dependencies
-```bash
+cd projects/nepos
 npm install
-```
-
-### 3. Configure Environment
-Create a `.env` file in the root directory based on `.env.example`:
-
-```env
-VITE_SUPABASE_URL=your_supabase_project_url
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-```
-
-### 4. Run Locally
-Start the development server:
-```bash
 npm run dev
 ```
 
-## 📂 Directory Structure
-
-```plaintext
-src/
-├── components/       # Reusable UI components (Sidebar, Modals, etc.)
-├── context/          # Global state (Auth, Theme, Data, Settings)
-├── hooks/            # Custom React hooks
-├── screens/          # Main application views (Dashboard, Menu, Inventory)
-├── services/         # Business logic & API calls (Settings, Print, Audit)
-├── types/            # TypeScript type definitions
-├── utils/            # Helper functions
-├── App.tsx           # Main application entry & Routing logic
-└── supabase.ts       # Supabase client configuration
+Build production:
+```bash
+npm run build
+npm run preview
 ```
 
-## 🤝 Contribution
+## Environment
+Tạo `.env.local` (hoặc `.env`) trong `projects/nepos`:
+```env
+VITE_SUPABASE_URL=...
+VITE_SUPABASE_ANON_KEY=...
+```
 
-We welcome contributions! Please follow these steps:
+## Lưu ý quan trọng
+### 1) `npm run dev` báo thiếu vite/tsc
+Nếu môi trường đang để production (`NODE_ENV=production`, `npm omit=dev`) thì devDependencies không được cài.
 
-1.  Fork the repository.
-2.  Create a feature branch (`git checkout -b feature/AmazingFeature`).
-3.  Commit your changes following [Conventional Commits](https://www.conventionalcommits.org/).
-4.  Push to the branch (`git push origin feature/AmazingFeature`).
-5.   Open a Pull Request.
+Fix nhanh:
+```bash
+npm config set omit ""
+unset NODE_ENV
+npm install
+npm run dev
+```
 
-## 📄 License
+### 2) In hóa đơn trên tablet Android
+- `printMethod=browser`: đẹp trên desktop, nhưng tablet có thể không in trực tiếp tốt.
+- `printMethod=rawbt`: dùng RawBT cho Android/Bluetooth.
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+Project đã có template **RawBT compact** riêng để cải thiện chất lượng in trên tablet.
+
+### 3) Offline + đồng bộ
+- Order cập nhật local trước, sau đó đẩy queue lên server.
+- Có realtime subscription để thiết bị khác nhận thay đổi nhanh.
+
+## Checklist smoke test sau khi pull code
+1. Login/logout OK
+2. Tạo đơn -> thanh toán -> Reports cập nhật
+3. Inventory load không treo
+4. Settings PIN load được danh sách user
+5. In test ticket (desktop hoặc rawbt theo thiết bị)
+6. Tax export S2a/S2c/S2d/S2e tạo file thành công
+
+## Gợi ý quy trình phát triển
+- `npm run lint` trước khi commit
+- `npm run build` để verify production bundle
+- Commit message theo conventional commits (`fix:`, `feat:`, `perf:`)
+
+---
+Nếu cần onboarding nhanh cho nhân viên vận hành (setup máy in, PIN, sync nhiều máy), ưu tiên vào **Settings > Thiết lập nhanh**.
