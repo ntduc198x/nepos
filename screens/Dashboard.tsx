@@ -667,7 +667,7 @@ export const Dashboard: React.FC = () => {
             <div 
               className="sticky z-[80] bg-background/95 backdrop-blur-md border-t border-border p-4 lg:p-6 space-y-4 shadow-[0_-8px_30px_rgb(0,0,0,0.12)]"
               style={{
-                bottom: 'clamp(calc(env(safe-area-inset-bottom, 0px) + 72px), var(--app-bottom-offset, calc(env(safe-area-inset-bottom, 0px) + 104px)), calc(env(safe-area-inset-bottom, 0px) + 104px))'
+                bottom: 'calc(var(--app-bottom-offset, calc(env(safe-area-inset-bottom, 0px) + 104px)) + 10px)'
               }}
             >
                {(() => {
