@@ -122,10 +122,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       setUser(userData);
 
-      // FIX 7: Khởi đầu từ 'staff' (an toàn nhất), KHÔNG từ localStorage cache.
-      // Cache có thể là role cũ đã bị downgrade. Chỉ nâng lên qua app_metadata hoặc DB.
-      let finalRole: UserRole = 'staff';
-      let finalStoreId: string = localStorage.getItem('auth_store_id') || 'STORE_DEFAULT';
+      // Keep last known good role/store as baseline to avoid accidental downgrade on transient failures.
+      const cachedRole = normalizeRole(localStorage.getItem('auth_role'));
+      let finalRole: UserRole = cachedRole || role || 'staff';
+      let finalStoreId: string = localStorage.getItem('auth_store_id') || storeId || 'STORE_DEFAULT';
 
       // Bước 1: app_metadata từ JWT (Server-signed, độ tin cậy cao)
       // FIX 2: Chấp nhận tất cả role hợp lệ kể cả 'staff'

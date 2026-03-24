@@ -73,33 +73,6 @@ export const Dashboard: React.FC = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  useEffect(() => {
-    const computeInset = () => {
-      const vv = window.visualViewport;
-      if (!vv) {
-        setDeviceBottomInset(0);
-        return;
-      }
-      const rawInset = Math.max(0, Math.round(window.innerHeight - (vv.height + vv.offsetTop)));
-      setDeviceBottomInset(rawInset > 120 ? 0 : rawInset);
-    };
-
-    computeInset();
-    const vv = window.visualViewport;
-    window.addEventListener('resize', computeInset);
-    vv?.addEventListener('resize', computeInset);
-    vv?.addEventListener('scroll', computeInset);
-    return () => {
-      window.removeEventListener('resize', computeInset);
-      vv?.removeEventListener('resize', computeInset);
-      vv?.removeEventListener('scroll', computeInset);
-    };
-  }, []);
-
-  const isLgUp = typeof window !== 'undefined' && window.innerWidth >= 1024;
-  const bottomNavOffset = 70 + deviceBottomInset;
-  const dashboardBottomOffset = isLgUp ? 0 : bottomNavOffset;
-
   // Fetch Admin IDs if current user is Manager
   useEffect(() => {
     if (userRole === 'manager') {
@@ -629,7 +602,7 @@ export const Dashboard: React.FC = () => {
 
             <div
               className="flex-1 overflow-y-auto p-4 lg:p-6 custom-scrollbar bg-surface/30 lg:pb-8"
-              style={{ paddingBottom: `calc(240px + env(safe-area-inset-bottom, 0px) + ${dashboardBottomOffset + 2}px)` }}
+              style={{ paddingBottom: `calc(240px + var(--app-bottom-offset, env(safe-area-inset-bottom, 0px)))` }}
             >
                {(() => {
                   const { items: enriched } = enrichOrderDetails(viewingOrder, menuItems);
@@ -693,7 +666,7 @@ export const Dashboard: React.FC = () => {
 
             <div 
               className="sticky z-50 bg-background/95 backdrop-blur-md border-t border-border p-4 lg:p-6 space-y-4 shadow-[0_-8px_30px_rgb(0,0,0,0.12)]"
-              style={{ bottom: `calc(env(safe-area-inset-bottom, 0px) + ${dashboardBottomOffset}px)` }}
+              style={{ bottom: 'var(--app-bottom-offset, calc(env(safe-area-inset-bottom, 0px) + 96px))' }}
             >
                {(() => {
                   const { items: enriched, totalAmount: subtotal } = enrichOrderDetails(viewingOrder, menuItems);
