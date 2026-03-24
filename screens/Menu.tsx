@@ -1018,8 +1018,8 @@ export const Menu: React.FC = () => {
 
         {/* Floating Cart Button for Mobile/Vertical Tablet */}
         <div
-          className="lg:hidden fixed left-0 right-0 p-4 z-[65] pointer-events-none"
-          style={{ bottom: `calc(env(safe-area-inset-bottom, 0px) + ${footerBottomOffset}px)` }}
+          className="lg:hidden fixed left-0 right-0 p-4 z-[45] pointer-events-none"
+          style={{ bottom: `calc(env(safe-area-inset-bottom, 0px) + ${bottomNavOffset - 16}px)` }}
         >
           <button
             onClick={() => setIsCartSheetOpen(true)}
@@ -1046,7 +1046,7 @@ export const Menu: React.FC = () => {
 
       {/* Sidebar - Mobile Drawer / Desktop Fixed */}
       <div
-        className={`bg-surface border-l border-border flex-col shadow-2xl shrink-0 z-50 h-full overflow-hidden transition-transform duration-300
+        className={`bg-surface border-l border-border flex-col shadow-2xl shrink-0 z-[85] h-full overflow-hidden transition-transform duration-300
           lg:translate-x-0 lg:static lg:flex lg:w-80 lg:xl:w-96 lg:z-20
           fixed top-0 right-0 w-full sm:w-[400px] ${isCartSheetOpen ? 'translate-x-0 flex' : 'translate-x-full hidden lg:flex'}`}
         style={{
