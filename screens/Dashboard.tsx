@@ -666,7 +666,9 @@ export const Dashboard: React.FC = () => {
 
             <div 
               className="sticky z-50 bg-background/95 backdrop-blur-md border-t border-border p-4 lg:p-6 space-y-4 shadow-[0_-8px_30px_rgb(0,0,0,0.12)]"
-              style={{ bottom: 'var(--app-bottom-offset, calc(env(safe-area-inset-bottom, 0px) + 96px))' }}
+              style={{
+                bottom: 'clamp(calc(env(safe-area-inset-bottom, 0px) + 56px), var(--app-bottom-offset, calc(env(safe-area-inset-bottom, 0px) + 96px)), calc(env(safe-area-inset-bottom, 0px) + 88px))'
+              }}
             >
                {(() => {
                   const { items: enriched, totalAmount: subtotal } = enrichOrderDetails(viewingOrder, menuItems);
