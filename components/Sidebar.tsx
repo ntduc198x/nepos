@@ -294,8 +294,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView }) =
       {showMobileMoreMenu && (
         <div className="lg:hidden fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-end animate-in fade-in duration-200">
            <div
-             className="w-full bg-surface rounded-t-2xl border-t border-border p-4 space-y-2 animate-in slide-in-from-bottom duration-300 max-h-[85vh] overflow-y-auto"
-             style={{ paddingBottom: 'calc(var(--app-bottom-offset, env(safe-area-inset-bottom, 0px)) + 8px)' }}
+             className="w-full bg-surface rounded-t-2xl border-t border-border p-4 space-y-2 animate-in slide-in-from-bottom duration-300 overflow-y-auto"
+             style={{
+               maxHeight: 'calc(100vh - var(--app-top-offset, env(safe-area-inset-top, 0px)) - 8px)',
+               paddingBottom: 'calc(var(--app-bottom-offset, env(safe-area-inset-bottom, 0px)) + 20px)'
+             }}
            >
               <div className="flex justify-center mb-2">
                  <div className="w-12 h-1.5 bg-border rounded-full" />
@@ -324,19 +327,21 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView }) =
                 ))}
               </div>
 
-              <button onClick={() => setShowMobileMoreMenu(false)} className="w-full py-3 text-secondary font-bold hover:text-text-main">
-                Close Menu
-              </button>
-              
-              <button 
-                  onClick={async () => {
-                    await signOut();
-                    onChangeView('login');
-                  }}
-                  className="w-full py-3 mt-2 bg-red-500/10 text-red-500 rounded-xl font-bold flex items-center justify-center gap-2"
-              >
-                <LogOut size={18} /> {t('Logout')}
-              </button>
+              <div className="sticky bottom-0 bg-surface pt-2 pb-1 border-t border-border/60 space-y-2">
+                <button onClick={() => setShowMobileMoreMenu(false)} className="w-full py-3 text-secondary font-bold hover:text-text-main">
+                  Close Menu
+                </button>
+
+                <button 
+                    onClick={async () => {
+                      await signOut();
+                      onChangeView('login');
+                    }}
+                    className="w-full py-3 bg-red-500/10 text-red-500 rounded-xl font-bold flex items-center justify-center gap-2"
+                >
+                  <LogOut size={18} /> {t('Logout')}
+                </button>
+              </div>
            </div>
            <div className="absolute inset-0 -z-10" onClick={() => setShowMobileMoreMenu(false)}></div>
         </div>
