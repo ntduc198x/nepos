@@ -816,7 +816,7 @@ export const Menu: React.FC = () => {
       </div>
 
       <div
-        className={`${isSheet ? 'fixed left-0 right-0 z-50 p-4' : 'relative z-50 p-4'} bg-background/95 backdrop-blur-md border-t border-border shadow-2xl space-y-4`}
+        className={`${isSheet ? 'fixed left-0 right-0 z-50 p-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]' : 'relative z-50 p-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]'} bg-background/95 backdrop-blur-md border-t border-border shadow-2xl space-y-4`}
         style={isSheet ? { bottom: `calc(env(safe-area-inset-bottom, 0px) + ${bottomNavOffset}px)` } : undefined}
       >
         <div className="flex justify-between items-end">
@@ -1168,7 +1168,7 @@ export const Menu: React.FC = () => {
                   </div>
 
                   <div
-                    className="p-4 border-t border-border bg-background space-y-4"
+                    className="p-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] border-t border-border bg-background space-y-4"
                     style={isCartSheetOpen ? { paddingBottom: `calc(env(safe-area-inset-bottom, 0px) + ${footerBottomOffset + 20}px)` } : undefined}
                   >
                     {(() => {

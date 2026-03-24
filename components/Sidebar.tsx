@@ -260,7 +260,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView }) =
           {[...mainItems, ...secondaryItems].map(item => renderIconNav(item, false))}
         </nav>
 
-        <div className="p-4 border-t border-border mt-auto">
+        <div className="p-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] border-t border-border mt-auto">
           <div 
             onClick={() => setShowProfileModal(true)}
             className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-surface transition-colors cursor-pointer mb-2 group"
