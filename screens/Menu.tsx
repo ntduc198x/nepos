@@ -749,8 +749,9 @@ export const Menu: React.FC = () => {
     setIsNoteModalOpen(false);
   };
 
-  const bottomNavOffset = 70 + deviceBottomInset;
-  const mobileNavSafeGap = 16; // extra clearance above bottom nav on tablet/mobile
+  const appBottomNavHeight = 96; // includes app bottom nav + breathing room for tablet/mobile
+  const bottomNavOffset = appBottomNavHeight + deviceBottomInset;
+  const mobileNavSafeGap = 20; // extra clearance above bottom nav on tablet/mobile
   const footerBottomOffset = bottomNavOffset + mobileNavSafeGap;
 
   const processedItems = useMemo(() => {
