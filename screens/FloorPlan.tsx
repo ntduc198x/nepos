@@ -925,8 +925,9 @@ export const FloorPlan: React.FC = () => {
       )}
       
       <div 
-        className={`fixed bottom-0 left-0 right-0 bg-background rounded-t-3xl shadow-2xl z-[70] lg:hidden transition-transform duration-300 ease-out flex flex-col max-h-[85vh]
+        className={`fixed left-0 right-0 bg-background rounded-t-3xl shadow-2xl z-[70] lg:hidden transition-transform duration-300 ease-out flex flex-col max-h-[85vh]
             ${selectedTableId && activeTable ? 'translate-y-0' : 'translate-y-full'}`}
+        style={{ bottom: 'var(--app-bottom-offset, calc(env(safe-area-inset-bottom, 0px) + 96px))' }}
       >
          <div className="w-12 h-1.5 bg-border rounded-full mx-auto my-3 shrink-0" />
          {selectedTableId && renderTableDetailContent()}

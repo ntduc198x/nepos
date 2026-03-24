@@ -119,7 +119,10 @@ function AppContent({ currentView, setCurrentView }: { currentView: View, setCur
         style={{ opacity: (100 - brightness) / 100 }}
       />
       <Sidebar currentView={currentView} onChangeView={setCurrentView} />
-      <main className="flex-1 flex flex-col h-full overflow-hidden relative pb-[70px] lg:pb-0 w-full transition-all duration-300">
+      <main
+        className="flex-1 flex flex-col h-full overflow-hidden relative lg:pb-0 w-full transition-all duration-300"
+        style={{ paddingBottom: 'var(--app-bottom-offset, calc(env(safe-area-inset-bottom, 0px) + 96px))' }}
+      >
         <Suspense fallback={null}>
           {renderView()}
         </Suspense>

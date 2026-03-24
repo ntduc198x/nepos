@@ -749,7 +749,7 @@ export const Menu: React.FC = () => {
     setIsNoteModalOpen(false);
   };
 
-  const appBottomNavHeight = 96; // includes app bottom nav + breathing room for tablet/mobile
+  const appBottomNavHeight = 112; // stronger global clearance for bottom nav on tablet/mobile
   const bottomNavOffset = appBottomNavHeight + deviceBottomInset;
   const mobileNavSafeGap = 20; // extra clearance above bottom nav on tablet/mobile
   const footerBottomOffset = bottomNavOffset + mobileNavSafeGap;
@@ -1048,8 +1048,11 @@ export const Menu: React.FC = () => {
       <div
         className={`bg-surface border-l border-border flex-col shadow-2xl shrink-0 z-50 h-full overflow-hidden transition-transform duration-300
           lg:translate-x-0 lg:static lg:flex lg:w-80 lg:xl:w-96 lg:z-20
-          fixed inset-y-0 right-0 w-full sm:w-[400px] ${isCartSheetOpen ? 'translate-x-0 flex' : 'translate-x-full hidden lg:flex'}`}
-        style={{ borderWidth: 'var(--pos-border-strong)' }}
+          fixed top-0 right-0 w-full sm:w-[400px] ${isCartSheetOpen ? 'translate-x-0 flex' : 'translate-x-full hidden lg:flex'}`}
+        style={{
+          borderWidth: 'var(--pos-border-strong)',
+          ...(isCartSheetOpen ? { bottom: 'var(--app-bottom-offset, calc(env(safe-area-inset-bottom, 0px) + 96px))' } : {})
+        }}
       >
         {/* Mobile Close Button Header */}
         <div className="lg:hidden flex items-center justify-between p-4 border-b border-border bg-background">

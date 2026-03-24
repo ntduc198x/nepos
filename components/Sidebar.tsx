@@ -192,7 +192,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView }) =
 
   return (
     <>
-      <nav className="fixed bottom-0 left-0 w-full bg-background/95 backdrop-blur-md border-t border-border flex justify-around items-center h-[70px] z-50 px-2 pb-safe lg:hidden transition-colors">
+      <nav
+        className="fixed bottom-0 left-0 w-full bg-background/95 backdrop-blur-md border-t border-border flex justify-around items-center z-50 px-2 lg:hidden transition-colors"
+        style={{
+          height: 'calc(70px + env(safe-area-inset-bottom, 0px))',
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)'
+        }}
+      >
         {mainItems.slice(0, 4).map(item => renderIconNav(item, true))}
         
         <button 
