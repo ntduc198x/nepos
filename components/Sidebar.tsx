@@ -327,7 +327,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView }) =
                 ))}
               </div>
 
-              <div className="sticky bottom-0 bg-surface pt-2 pb-1 border-t border-border/60 space-y-2">
+              <div
+                className="sticky bg-surface pt-2 border-t border-border/60 space-y-2"
+                style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 74px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+              >
                 <button onClick={() => setShowMobileMoreMenu(false)} className="w-full py-3 text-secondary font-bold hover:text-text-main">
                   Close Menu
                 </button>
