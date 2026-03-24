@@ -293,7 +293,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView }) =
 
       {showMobileMoreMenu && (
         <div className="lg:hidden fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-end animate-in fade-in duration-200">
-           <div className="w-full bg-surface rounded-t-2xl border-t border-border p-4 pb-8 space-y-2 animate-in slide-in-from-bottom duration-300">
+           <div
+             className="w-full bg-surface rounded-t-2xl border-t border-border p-4 space-y-2 animate-in slide-in-from-bottom duration-300 max-h-[85vh] overflow-y-auto"
+             style={{ paddingBottom: 'calc(var(--app-bottom-offset, env(safe-area-inset-bottom, 0px)) + 8px)' }}
+           >
               <div className="flex justify-center mb-2">
                  <div className="w-12 h-1.5 bg-border rounded-full" />
               </div>
