@@ -767,7 +767,9 @@ export const Menu: React.FC = () => {
   const CartList = ({ isSheet = false }) => (
     <div
       className="flex flex-col h-full"
-      style={isSheet ? { paddingBottom: `calc(env(safe-area-inset-bottom, 0px) + ${bottomNavOffset + 110}px)` } : undefined}
+      style={isSheet
+        ? { paddingBottom: `calc(env(safe-area-inset-bottom, 0px) + ${footerBottomOffset + 130}px)` }
+        : { paddingBottom: `calc(env(safe-area-inset-bottom, 0px) + ${mobileNavSafeGap}px)` }}
     >
       <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
         {cart.length === 0 ? (
@@ -1163,7 +1165,7 @@ export const Menu: React.FC = () => {
 
                   <div
                     className="p-4 border-t border-border bg-background space-y-4"
-                    style={isCartSheetOpen ? { paddingBottom: `calc(env(safe-area-inset-bottom, 0px) + ${bottomNavOffset + 10}px)` } : undefined}
+                    style={isCartSheetOpen ? { paddingBottom: `calc(env(safe-area-inset-bottom, 0px) + ${footerBottomOffset + 20}px)` } : undefined}
                   >
                     {(() => {
                       const { items: enriched, totalAmount: subtotal } = enrichOrderDetails(viewingOrder, items);
