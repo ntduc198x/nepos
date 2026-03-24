@@ -261,33 +261,49 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView }) =
         </nav>
 
         <div className="p-4 pb-[calc(2.5rem+env(safe-area-inset-bottom,0px))] border-t border-border mt-auto">
-          <div 
-            onClick={() => setShowProfileModal(true)}
-            className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-surface transition-colors cursor-pointer mb-2 group"
-          >
-            <div className="relative">
-              <img 
-                src={avatarUrl || "https://ui-avatars.com/api/?name=User&background=random"}
-                alt="User" 
-                className="w-10 h-10 rounded-full border-2 border-border object-cover group-hover:border-primary transition-colors"
-              />
+          <div className="rounded-2xl border border-border bg-surface/70 p-3 shadow-sm space-y-3">
+            <div
+              onClick={() => setShowProfileModal(true)}
+              className="flex items-center gap-3 p-2 rounded-xl hover:bg-background/80 transition-colors cursor-pointer group"
+            >
+              <div className="relative shrink-0">
+                <img
+                  src={avatarUrl || "https://ui-avatars.com/api/?name=User&background=random"}
+                  alt="User"
+                  className="w-12 h-12 rounded-full border-2 border-border object-cover group-hover:border-primary transition-colors"
+                />
+                <span className="absolute -bottom-0.5 -right-0.5 size-3 rounded-full bg-emerald-500 border-2 border-surface" />
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-black text-text-main truncate leading-tight">{userName}</p>
+                <p className="text-[11px] text-secondary capitalize truncate">{role}</p>
+              </div>
+
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowProfileModal(true);
+                }}
+                className="p-2 rounded-lg bg-background border border-border text-secondary hover:text-primary hover:border-primary/40 transition-all"
+                title={t('Settings')}
+              >
+                <Settings size={16} />
+              </button>
             </div>
-            <div className="flex flex-col overflow-hidden">
-              <p className="text-sm font-bold text-text-main truncate">{userName}</p>
-              <p className="text-xs text-secondary capitalize">{role}</p>
-            </div>
+
+            <button
+              onClick={async () => {
+                await signOut();
+                onChangeView('login');
+              }}
+              className="w-full h-11 px-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 hover:bg-red-500 hover:text-white transition-all font-bold flex items-center justify-center gap-2"
+              style={{ minHeight: 'var(--pos-btn-h)' }}
+            >
+              <LogOut size={18} />
+              <span className="text-sm">{t('Logout')}</span>
+            </button>
           </div>
-          <button 
-            onClick={async () => {
-              await signOut();
-              onChangeView('login');
-            }}
-            className="flex w-full items-center gap-3 px-3 py-2 text-secondary hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-            style={{ minHeight: 'var(--pos-btn-h)' }}
-          >
-            <LogOut size={20} />
-            <span className="text-sm font-medium">{t('Logout')}</span>
-          </button>
         </div>
       </aside>
 
