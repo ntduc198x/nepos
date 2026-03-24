@@ -153,6 +153,30 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView }) =
 
   const handleMobileNavClick = (view: View) => { onChangeView(view); setShowMobileMoreMenu(false); }
 
+  useEffect(() => {
+    const updateAppSafeOffsets = () => {
+      const vv = window.visualViewport;
+      const dynamicBottomInset = vv ? Math.max(0, Math.round(window.innerHeight - (vv.height + vv.offsetTop))) : 0;
+      const normalizedBottomInset = dynamicBottomInset > 120 ? 0 : dynamicBottomInset;
+      const navHeight = 96 + normalizedBottomInset;
+      document.documentElement.style.setProperty('--app-bottom-offset', `calc(env(safe-area-inset-bottom, 0px) + ${navHeight}px)`);
+
+      const topInset = vv ? Math.max(0, Math.round(vv.offsetTop)) : 0;
+      document.documentElement.style.setProperty('--app-top-offset', `calc(env(safe-area-inset-top, 0px) + ${topInset}px)`);
+    };
+
+    updateAppSafeOffsets();
+    const vv = window.visualViewport;
+    window.addEventListener('resize', updateAppSafeOffsets);
+    vv?.addEventListener('resize', updateAppSafeOffsets);
+    vv?.addEventListener('scroll', updateAppSafeOffsets);
+    return () => {
+      window.removeEventListener('resize', updateAppSafeOffsets);
+      vv?.removeEventListener('resize', updateAppSafeOffsets);
+      vv?.removeEventListener('scroll', updateAppSafeOffsets);
+    };
+  }, []);
+
   const renderIconNav = (item: NavItem, isMobile = false) => {
      const isActive = currentView === item.id;
      return (

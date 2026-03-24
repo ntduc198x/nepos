@@ -121,7 +121,10 @@ function AppContent({ currentView, setCurrentView }: { currentView: View, setCur
       <Sidebar currentView={currentView} onChangeView={setCurrentView} />
       <main
         className="flex-1 flex flex-col h-full overflow-hidden relative lg:pb-0 w-full transition-all duration-300"
-        style={{ paddingBottom: 'var(--app-bottom-offset, calc(env(safe-area-inset-bottom, 0px) + 96px))' }}
+        style={{
+          paddingTop: 'var(--app-top-offset, env(safe-area-inset-top, 0px))',
+          paddingBottom: 'var(--app-bottom-offset, calc(env(safe-area-inset-bottom, 0px) + 96px))'
+        }}
       >
         <Suspense fallback={null}>
           {renderView()}
